@@ -1,18 +1,45 @@
-const handleUploadMutiplo = async (e) => {
+import React, { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import { UploadCloud, FileText, CheckCircle2, RefreshCw } from 'lucide-react';
+
+// Credenciais do seu projeto
+const SUPABASE_URL = 'https://gmhxmtlidgcgpstxiiwg.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'; 
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+export default function MaximusV36() {
+  const [arquivos, setArquivos] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const CNPJ_CAELI = '38.404.019/0001-76';
+
+  useEffect(() => { carregarArquivos(); }, []);
+
+  async function carregarArquivos() {
+    const { data, error } = await supabase
+      .from('arquivos_processo')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (data) setArquivos(data);
+    if (error) console.error("Erro ao carregar:", error.message);
+  }
+
+  const handleUploadMutiplo = async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
     setLoading(true);
 
     for (const file of files) {
-      // 1. LIMPA O NOME: Remove acentos e caracteres especiais
+      // 1. HIGIENIZAÇÃO DO NOME (Crucial para eliminar o erro 400 das suas fotos)
+      // Remove acentos, cedilha e troca espaços por sublinhado (_)
       const nomeLimpo = file.name
         .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "") // Remove acentos
-        .replace(/[^a-zA-Z0-9.]/g, "_"); // Troca espaços e símbolos por "_"
+        .replace(/[\u0300-\u036f]/g, "") 
+        .replace(/[^a-zA-Z0-9.]/g, "_");
       
       const path = `dossie/${Date.now()}_${nomeLimpo}`;
       
-      // 2. ENVIA PARA O STORAGE
+      // 2. ENVIO PARA O STORAGE (Nuvem)
       const { error: storageError } = await supabase.storage
         .from('processos-ambientais')
         .upload(path, file);
@@ -22,14 +49,77 @@ const handleUploadMutiplo = async (e) => {
           .from('processos-ambientais')
           .getPublicUrl(path);
         
-        // 3. GRAVA NO BANCO (CNPJ CAELI)
-        await supabase.from('arquivos_processo').insert([{ 
-          empresa_cnpj: '38.404.019/0001-76', 
+        // 3. GRAVAÇÃO NA TABELA (Agora com nome aceito pelo banco)
+        const { error: dbError } = await supabase.from('arquivos_processo').insert([{ 
+          empresa_cnpj: CNPJ_CAELI, 
           nome_arquivo: nomeLimpo, 
           url_publica: urlData.publicUrl 
         }]);
+
+        if (dbError) console.error("Erro no Banco:", dbError.message);
+      } else {
+        console.error("Erro no Storage:", storageError.message);
       }
     }
-    await carregarArquivos();
-    setLoading(false);
+    
+    // Atualiza a lista após 1 segundo
+    setTimeout(() => {
+      carregarArquivos();
+      setLoading(false);
+    }, 1000);
   };
+
+  return (
+    <div style={{ padding: '30px', backgroundColor: '#f0f4f8', minHeight: '100vh', fontFamily: 'Arial' }}>
+      {/* Header de Status */}
+      <div style={{ backgroundColor: '#020617', padding: '20px', borderRadius: '15px', color: 'white', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h2 style={{ margin: 0 }}>MAXIMUS v36</h2>
+          <p style={{ margin: 0, color: loading ? '#fbbf24' : '#4ade80' }}>
+            {loading ? "Limpando nomes e gravando..." : "Banco de Dados Pronto"}
+          </p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <button onClick={carregarArquivos} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>
+                <RefreshCw size={24} className={loading ? "animate-spin" : ""} />
+            </button>
+            <CheckCircle2 color={loading ? "#fbbf24" : "#4ade80"} size={40} />
+        </div>
+      </div>
+
+      {/* Card de Upload */}
+      <div style={{ backgroundColor: 'white', padding: '50px', borderRadius: '20px', border: '3px dashed #cbd5e1', textAlign: 'center', marginBottom: '20px' }}>
+        <input type="file" multiple onChange={handleUploadMutiplo} id="m" hidden />
+        <label htmlFor="m" style={{ cursor: 'pointer' }}>
+          <UploadCloud size={60} color="#3b82f6" style={{ marginBottom: '10px' }} />
+          <h3>Clique para subir os 13 arquivos</h3>
+          <p style={{ color: '#64748b' }}>O sistema agora corrige nomes com acento automaticamente</p>
+          <div style={{ background: '#3b82f6', color: 'white', padding: '15px 40px', borderRadius: '10px', fontWeight: 'bold', marginTop: '10px', display: 'inline-block' }}>
+            {loading ? "PROCESSANDO DOSSIÊ..." : "CARREGAR AGORA"}
+          </div>
+        </label>
+      </div>
+
+      {/* Lista de Documentos Gerada */}
+      <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}>
+        <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+            Documentos Confirmados no Banco ({arquivos.length})
+        </h3>
+        
+        {arquivos.length === 0 && !loading && (
+            <p style={{ color: '#94a3b8', textAlign: 'center' }}>Aguardando primeiro upload...</p>
+        )}
+
+        {arquivos.map((arq) => (
+          <div key={arq.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px', borderBottom: '1px solid #eee' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <FileText color="#3b82f6" />
+              <span style={{ fontWeight: 'bold', color: '#1e293b' }}>{arq.nome_arquivo}</span>
+            </div>
+            <a href={arq.url_publica} target="_blank" rel="noreferrer" style={{ background: '#020617', color: 'white', padding: '8px 20px', borderRadius: '8px', textDecoration: 'none', fontSize: '13px' }}>ABRIR</a>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
