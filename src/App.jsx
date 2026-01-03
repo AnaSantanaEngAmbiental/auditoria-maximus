@@ -1,46 +1,51 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { 
-  ShieldCheck, UploadCloud, FileText, Camera, 
-  Building2, Eye, Trash2, CheckCircle2
-} from 'lucide-react';
+import { ShieldCheck, UploadCloud, FileText, Building2, Eye, Trash2, AlertCircle, Wifi, WifiOff } from 'lucide-react';
 
-// --- CONEXÃO CONFIGURADA ---
+// --- CONFIGURAÇÃO ---
 const SUPABASE_URL = 'https://gmhxmtlidgcgpstxiiwg.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'; // Insira sua Anon Key do painel Supabase
+const SUPABASE_KEY = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'; 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-export default function SilamMaximusV21() {
+export default function MaximusV23() {
   const [aba, setAba] = useState('upload');
-  const [loading, setLoading] = useState(false);
-  // Dados extraídos dos seus documentos PDF
-  const [dados, setDados] = useState({ 
-    razao: 'CARDOSO & RATES, TRANSPORTE DE CARGA LTDA', 
-    cnpj: '38.404.019/0001-76', 
-    tecnico: 'ANA PAULA SANTANA PEREIRA', 
-    cidade: 'MARABÁ/PA' 
-  });
+  const [status, setStatus] = useState({ tipo: 'info', msg: 'Iniciando sistema...' });
   const [arquivos, setArquivos] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const cnpjFoco = '38.404.019/0001-76'; // Caeli Transportes
 
   useEffect(() => {
+    testarConexao();
     carregarArquivos();
-  }, [dados.cnpj]);
+  }, []);
+
+  async function testarConexao() {
+    const { error } = await supabase.from('arquivos_processo').select('id').limit(1);
+    if (error) {
+      setStatus({ tipo: 'erro', msg: `Erro de Conexão: ${error.message}` });
+    } else {
+      setStatus({ tipo: 'sucesso', msg: 'Conectado ao Banco Maximus com Sucesso!' });
+    }
+  }
 
   async function carregarArquivos() {
     const { data, error } = await supabase
       .from('arquivos_processo')
       .select('*')
-      .eq('empresa_cnpj', dados.cnpj)
+      .eq('empresa_cnpj', cnpjFoco)
       .order('created_at', { ascending: false });
     
-    if (!error && data) setArquivos(data);
+    if (error) setStatus({ tipo: 'erro', msg: error.message });
+    else setArquivos(data || []);
   }
 
-  const realizarUpload = async (files) => {
+  const handleUpload = async (files) => {
     setLoading(true);
+    setStatus({ tipo: 'info', msg: 'Subindo arquivos para o servidor...' });
+
     for (const file of Array.from(files)) {
-      const fileName = `${Date.now()}_${file.name}`;
-      const path = `${dados.cnpj}/${fileName}`;
+      const path = `${cnpjFoco}/${Date.now()}_${file.name}`;
       
       const { error: storageError } = await supabase.storage
         .from('processos-ambientais').upload(path, file);
@@ -48,128 +53,100 @@ export default function SilamMaximusV21() {
       if (!storageError) {
         const { data: urlData } = supabase.storage.from('processos-ambientais').getPublicUrl(path);
         await supabase.from('arquivos_processo').insert([{
-          empresa_cnpj: dados.cnpj,
+          empresa_cnpj: cnpjFoco,
           nome_arquivo: file.name,
           url_publica: urlData.publicUrl,
-          categoria: file.type.startsWith('image/') ? 'FOTO' : 'DOCUMENTO'
+          categoria: 'DOCUMENTO'
         }]);
       }
     }
     await carregarArquivos();
     setLoading(false);
+    setStatus({ tipo: 'sucesso', msg: 'Arquivos sincronizados no dossiê!' });
   };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', backgroundColor: '#F8FAFC', fontFamily: 'Segoe UI, sans-serif' }}>
+    <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f0f2f5', fontFamily: 'system-ui' }}>
       
-      {/* SIDEBAR COM DADOS REAIS */}
-      <nav style={{ width: '380px', backgroundColor: '#020617', color: 'white', padding: '40px 25px', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '50px' }}>
-          <ShieldCheck color="#22c55e" size={45} />
-          <h1 style={{ fontSize: '28px', fontWeight: '900' }}>MAXIMUS <span style={{color:'#4ade80'}}>V21</span></h1>
+      {/* SIDEBAR FIXA */}
+      <nav style={{ width: '350px', backgroundColor: '#020617', color: 'white', padding: '40px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '40px' }}>
+          <ShieldCheck color="#22c55e" size={40} />
+          <h2 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0 }}>MAXIMUS <span style={{color:'#4ade80'}}>V23</span></h2>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '15px' }}>
-          <MenuBtn active={aba === 'dashboard'} onClick={() => setAba('dashboard')} icon={<Building2 size={24}/>} label="Dados do Cliente" />
-          <MenuBtn active={aba === 'upload'} onClick={() => setAba('upload')} icon={<UploadCloud size={24}/>} label="Dossiê Digital" />
-          <MenuBtn active={aba === 'fotos'} onClick={() => setAba('fotos')} icon={<Camera size={24}/>} label="Relatório de Fotos" />
+        <div style={{ flex: 1 }}>
+          <p style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '20px' }}>Navegação</p>
+          <button onClick={() => setAba('upload')} style={aba === 'upload' ? btnAtivo : btnInativo}> <FileText size={20}/> Dossiê de Documentos </button>
         </div>
 
-        {/* STATUS DO CNPJ EXTRAÍDO */}
-        <div style={{ background: '#1e293b', padding: '25px', borderRadius: '25px', border: '1px solid #334155' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-            <CheckCircle2 size={16} color="#4ade80" />
-            <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 'bold' }}>CNPJ IDENTIFICADO</span>
-          </div>
-          <p style={{ color: '#4ade80', fontWeight: '900', fontSize: '22px', margin: 0 }}>{dados.cnpj}</p>
-          <p style={{ fontSize: '11px', color: '#64748b', marginTop: '5px' }}>{dados.razao}</p>
+        <div style={{ background: '#1e293b', padding: '20px', borderRadius: '15px' }}>
+          <p style={{ fontSize: '10px', color: '#94a3b8', margin: '0 0 5px 0' }}>CNPJ CAELI</p>
+          <p style={{ color: '#4ade80', fontSize: '18px', fontWeight: 'bold', margin: 0 }}>{cnpjFoco}</p>
         </div>
       </nav>
 
-      {/* CONTEÚDO COM FONTES AMPLIADAS */}
-      <main style={{ flex: 1, padding: '60px', overflowY: 'auto' }}>
+      {/* ÁREA DE CONTEÚDO */}
+      <main style={{ flex: 1, padding: '40px', overflowY: 'auto' }}>
         
-        {aba === 'upload' && (
-          <div style={{ maxWidth: '1100px' }}>
-            <div 
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => { e.preventDefault(); realizarUpload(e.dataTransfer.files); }}
-              style={{
-                border: '4px dashed #CBD5E1', backgroundColor: 'white',
-                padding: '80px 40px', borderRadius: '40px', textAlign: 'center'
-              }}
-            >
-              <UploadCloud size={80} color="#22c55e" style={{ marginBottom: '20px' }} />
-              <h2 style={{ fontSize: '32px', fontWeight: '900', color: '#0F172A' }}>Arraste seus Documentos</h2>
-              <p style={{ fontSize: '18px', color: '#64748B', marginBottom: '30px' }}>Clique abaixo para selecionar múltiplos PDFs ou Fotos</p>
-              
-              <input type="file" multiple id="up" hidden onChange={(e) => realizarUpload(e.target.files)} />
-              <label htmlFor="up" style={{ background: '#22c55e', color: 'white', padding: '20px 50px', borderRadius: '15px', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold' }}>
-                {loading ? "PROCESSANDO..." : "CARREGAR ARQUIVOS"}
-              </label>
-            </div>
+        {/* BARRA DE STATUS DINÂMICA */}
+        <div style={{ 
+          backgroundColor: status.tipo === 'erro' ? '#fee2e2' : status.tipo === 'sucesso' ? '#dcfce7' : '#e0f2fe',
+          padding: '20px', borderRadius: '15px', marginBottom: '30px', display: 'flex', alignItems: 'center', gap: '15px',
+          border: `2px solid ${status.tipo === 'erro' ? '#ef4444' : '#22c55e'}`
+        }}>
+          {status.tipo === 'erro' ? <AlertTriangle color="#ef4444"/> : <CheckCircle color="#22c55e"/>}
+          <span style={{ fontWeight: 'bold', fontSize: '16px', color: '#1e293b' }}>{status.msg}</span>
+        </div>
 
-            {/* LISTAGEM UM A UM */}
-            <div style={{ marginTop: '50px' }}>
-              <h3 style={{ fontSize: '20px', fontWeight: '900', color: '#1E293B', marginBottom: '25px' }}>
-                DOCUMENTOS NO DOSSIÊ ({arquivos.length})
-              </h3>
-              
-              <div style={{ display: 'grid', gap: '15px' }}>
-                {arquivos.map((arq) => (
-                  <div key={arq.id} style={{ background: 'white', padding: '25px 35px', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                      <FileText size={30} color="#3B82F6" />
-                      <div>
-                        <span style={{ fontSize: '18px', fontWeight: '700', color: '#1E293B', display: 'block' }}>{arq.nome_arquivo}</span>
-                        <span style={{ fontSize: '13px', color: '#94A3B8' }}>Enviado em: {new Date(arq.created_at).toLocaleDateString('pt-BR')}</span>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '20px' }}>
-                      <a href={arq.url_publica} target="_blank" rel="noreferrer" style={{ background: '#F1F5F9', color: '#0F172A', padding: '12px', borderRadius: '12px' }}><Eye size={24}/></a>
-                      <button onClick={() => { if(confirm("Remover?")) supabase.from('arquivos_processo').delete().eq('id', arq.id).then(carregarArquivos); }} style={{ background: '#FEE2E2', border: 'none', color: '#EF4444', padding: '12px', borderRadius: '12px', cursor: 'pointer' }}><Trash2 size={24}/></button>
-                    </div>
+        <div style={{ maxWidth: '1000px' }}>
+          {/* UPLOAD BOX */}
+          <div 
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => { e.preventDefault(); handleUpload(e.dataTransfer.files); }}
+            style={{ backgroundColor: 'white', padding: '60px', borderRadius: '30px', textAlign: 'center', border: '3px dashed #cbd5e1' }}
+          >
+            <UploadCloud size={60} color="#22c55e" style={{ marginBottom: '20px' }} />
+            <h1 style={{ fontSize: '30px', fontWeight: '900', margin: '0 0 10px 0' }}>Gestão de Dossiê</h1>
+            <p style={{ fontSize: '18px', color: '#64748b', marginBottom: '30px' }}>Arraste os PDFs das carretas TVO9D07 e TVO9D17</p>
+            
+            <input type="file" multiple id="f" hidden onChange={(e) => handleUpload(e.target.files)} />
+            <label htmlFor="f" style={{ background: '#020617', color: 'white', padding: '15px 40px', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold' }}>
+              {loading ? "SINCRONIZANDO..." : "CARREGAR DOCUMENTOS"}
+            </label>
+          </div>
+
+          {/* LISTA DE DOCUMENTOS - ESTILO UM A UM */}
+          <div style={{ marginTop: '50px' }}>
+            <h3 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '20px', color: '#020617' }}>Documentos Identificados no Banco:</h3>
+            
+            {arquivos.length === 0 && !loading && (
+              <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Nenhum documento encontrado. Faça o upload acima.</div>
+            )}
+
+            <div style={{ display: 'grid', gap: '15px' }}>
+              {arquivos.map((arq) => (
+                <div key={arq.id} style={{ backgroundColor: 'white', padding: '25px', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                    <div style={{ background: '#f1f5f9', padding: '12px', borderRadius: '12px' }}><FileText color="#3b82f6"/></div>
+                    <span style={{ fontSize: '18px', fontWeight: '700', color: '#1e293b' }}>{arq.nome_arquivo}</span>
                   </div>
-                ))}
-              </div>
+                  <div style={{ display: 'flex', gap: '15px' }}>
+                    <a href={arq.url_publica} target="_blank" rel="noreferrer" style={{ background: '#020617', color: 'white', padding: '10px 20px', borderRadius: '10px', textDecoration: 'none', fontSize: '14px', fontWeight: 'bold' }}>VER PDF</a>
+                    <button onClick={async () => { if(confirm("Excluir?")) { await supabase.from('arquivos_processo').delete().eq('id', arq.id); carregarArquivos(); } }} style={{ background: '#fee2e2', color: '#ef4444', border: 'none', padding: '10px', borderRadius: '10px', cursor: 'pointer' }}><Trash2 size={20}/></button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        )}
-
-        {aba === 'dashboard' && (
-          <div style={{ background: 'white', padding: '60px', borderRadius: '40px', maxWidth: '900px' }}>
-             <h2 style={{ fontSize: '28px', fontWeight: '900', marginBottom: '40px' }}>INFORMAÇÕES DO EMPREENDIMENTO</h2>
-             <div style={{ display: 'grid', gap: '30px' }}>
-                <BigInput label="Razão Social" value={dados.razao} />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
-                  <BigInput label="CNPJ" value={dados.cnpj} />
-                  <BigInput label="Município" value={dados.cidade} />
-                </div>
-                <BigInput label="Responsável Técnico (Consultora)" value={dados.tecnico} />
-             </div>
-          </div>
-        )}
+        </div>
       </main>
     </div>
   );
 }
 
-function MenuBtn({ active, onClick, icon, label }) {
-  return (
-    <button onClick={onClick} style={{
-      display: 'flex', alignItems: 'center', gap: '15px', width: '100%', padding: '20px 25px',
-      borderRadius: '18px', border: 'none', cursor: 'pointer', fontSize: '16px', fontWeight: '800',
-      backgroundColor: active ? '#22c55e' : 'transparent',
-      color: active ? 'white' : '#64748B', transition: '0.2s'
-    }}> {icon} {label} </button>
-  );
-}
-
-function BigInput({ label, value }) {
-  return (
-    <div>
-      <label style={{ fontSize: '13px', fontWeight: '900', color: '#94A3B8', display: 'block', marginBottom: '10px', textTransform: 'uppercase' }}>{label}</label>
-      <input readOnly value={value} style={{ width: '100%', padding: '20px', borderRadius: '15px', border: '2px solid #F1F5F9', fontSize: '18px', fontWeight: '700', backgroundColor: '#F8FAFC', color: '#1E293B' }} />
-    </div>
-  );
-}
+// ESTILOS
+const btnAtivo = { display: 'flex', alignItems: 'center', gap: '15px', width: '100%', padding: '18px', borderRadius: '12px', border: 'none', backgroundColor: '#22c55e', color: 'white', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px' };
+const btnInativo = { display: 'flex', alignItems: 'center', gap: '15px', width: '100%', padding: '18px', borderRadius: '12px', border: 'none', backgroundColor: 'transparent', color: '#94a3b8', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px' };
+function CheckCircle(props) { return <ShieldCheck {...props} /> }
+function AlertTriangle(props) { return <AlertCircle {...props} /> }
