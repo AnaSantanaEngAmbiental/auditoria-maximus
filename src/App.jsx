@@ -97,7 +97,7 @@ export default function AplicativoMaximus() {
           <thead>
             <tr style={{ backgroundColor: '#f8f9fa', textAlign: 'left' }}>
               <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6' }}>CÓDIGO</th>
-              <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6' }}>DESCRIÇÃO</th>
+              <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6' }}>DESCRIÇÃO DE CONDICIONANTE</th>
               <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6' }}>STATUS</th>
             </tr>
           </thead>
@@ -110,7 +110,7 @@ export default function AplicativoMaximus() {
                   <td style={{ padding: '12px', fontWeight: 'bold' }}>{item.código}</td>
                   
                   {/* Ajustado para 'descrição' com acento conforme sua tabela */}
-                  <td style={{ padding: '12px' }}>{item.descrição}</td>
+                  <td style={{ padding: '12px' }}>{item.descriçãodecondicionante}</td>
                   
                   <td style={{ 
                     padding: '12px', 
