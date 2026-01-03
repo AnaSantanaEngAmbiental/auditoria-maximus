@@ -3,8 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { CheckCircle, AlertCircle, FileText, UploadCloud, Printer } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DO SUPABASE ---
-const supabaseUrl = 'SUA_URL_DO_SUPABASE_AQUI';
-const supabaseKey = 'SUA_KEY_ANON_DO_SUPABASE_AQUI';
+const supabaseUrl = 'https://gmhxmtlidgcgpstxiiwg.supabase.co';
+const supabaseKey = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default function MaximusApp() {
