@@ -6,7 +6,7 @@ const SUPABASE_URL = 'https://gmhxmtlidgcgpstxiiwg.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'; 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-export default function MaximusV37() {
+export default function MaximusV38() {
   const [arquivos, setArquivos] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -23,30 +23,26 @@ export default function MaximusV37() {
     setLoading(true);
 
     for (const file of files) {
-      // LIMPEZA TOTAL: Transforma "INCLUSÃO DO OFÍCIO.pdf" em "inclusao_do_oficio.pdf"
-      const nomeLimpo = file.name
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "") // Remove acentos
-        .replace(/[^a-z0-9.]/g, "_")    // Remove espaços e símbolos
-        .replace(/_+/g, "_");           // Remove sublinhados duplos
-      
+      // Limpeza de nome para evitar Erro 400
+      const nomeLimpo = file.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9.]/g, "_");
       const path = `dossie/${Date.now()}_${nomeLimpo}`;
       
-      // Envio para o Storage
+      // Tenta enviar para o Storage
       const { error: storageError } = await supabase.storage.from('processos-ambientais').upload(path, file);
 
       if (!storageError || storageError.message.includes('already exists')) {
         const { data: urlData } = supabase.storage.from('processos-ambientais').getPublicUrl(path);
         
-        // Grava no banco com o CNPJ da Caeli
+        // Grava na tabela
         await supabase.from('arquivos_processo').insert([{ 
           empresa_cnpj: '38.404.019/0001-76', 
           nome_arquivo: nomeLimpo, 
           url_publica: urlData.publicUrl 
         }]);
       } else {
-        console.error("Erro no Storage:", storageError.message);
+        alert("Erro no Storage: " + storageError.message + ". Execute o SQL de permissão!");
+        setLoading(false);
+        return;
       }
     }
     await carregarArquivos();
@@ -57,9 +53,9 @@ export default function MaximusV37() {
     <div style={{ padding: '30px', backgroundColor: '#f0f4f8', minHeight: '100vh', fontFamily: 'Arial' }}>
       <div style={{ backgroundColor: '#020617', padding: '20px', borderRadius: '15px', color: 'white', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 style={{ margin: 0 }}>MAXIMUS v37</h2>
+          <h2 style={{ margin: 0 }}>MAXIMUS v38</h2>
           <p style={{ margin: 0, color: loading ? '#fbbf24' : '#4ade80' }}>
-            {loading ? "LIMPANDO E GRAVANDO..." : "BANCO DE DADOS PRONTO"}
+            {loading ? "DESTRAVANDO E GRAVANDO..." : "SISTEMA 100% PRONTO"}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '15px' }}>
@@ -72,7 +68,7 @@ export default function MaximusV37() {
         <input type="file" multiple onChange={handleUploadMutiplo} id="m" hidden />
         <label htmlFor="m" style={{ cursor: 'pointer' }}>
           <UploadCloud size={60} color="#3b82f6" style={{ marginBottom: '10px' }} />
-          <h3>Selecione os 13 arquivos agora</h3>
+          <h3>Clique para subir os 13 arquivos agora</h3>
           <div style={{ background: '#3b82f6', color: 'white', padding: '15px 40px', borderRadius: '10px', fontWeight: 'bold', marginTop: '10px', display: 'inline-block' }}>
             {loading ? "PROCESSANDO..." : "CARREGAR AGORA"}
           </div>
