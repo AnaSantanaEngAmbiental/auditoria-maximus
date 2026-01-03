@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { CheckCircle, AlertCircle, FileText, UploadCloud, Printer, Lock } from 'lucide-react';
+import { CheckCircle, AlertCircle, Printer, Lock } from 'lucide-react';
 
-// --- CONFIGURAÇÃO (COLOQUE SUAS CHAVES AQUI) ---
+// --- CONFIGURAÇÃO ---
 const supabaseUrl = 'https://gmhxmtlidgcgpstxiiwg.supabase.co'; 
 const supabaseKey = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs';
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -13,14 +13,23 @@ export default function AplicativoMaximus() {
   const [autorizado, setAutorizado] = useState(false);
   const [senhaInput, setSenhaInput] = useState('');
 
-  // Busca os dados da tabela que você criou
+  // Busca os dados da tabela
   useEffect(() => {
     if (autorizado) buscarDados();
   }, [autorizado]);
 
   async function buscarDados() {
-    const { data } = await supabase.from('auditório_máximo').select('*').order('código');
-    if (data) setItens(data);
+    // Busca na tabela 'auditório_máximo' e ordena pelo 'código'
+    const { data, error } = await supabase
+      .from('auditório_máximo')
+      .select('*')
+      .order('código');
+    
+    if (data) {
+      setItens(data);
+    } else if (error) {
+      console.error("Erro ao buscar dados:", error);
+    }
   }
 
   // TELA DE LOGIN
@@ -41,7 +50,7 @@ export default function AplicativoMaximus() {
           <br />
           <button 
             onClick={() => senhaInput === 'maximus2024' ? setAutorizado(true) : alert('Senha incorreta!')}
-            style={{ padding: '12px 30px', backgroundColor: '#1a73e8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+            style={{ padding: '12px 30px', backgroundColor: '#1a73e8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
           >
             Entrar no Sistema
           </button>
@@ -50,48 +59,74 @@ export default function AplicativoMaximus() {
     );
   }
 
-  // TELA PRINCIPAL (APÓS LOGIN)
+  // TELA PRINCIPAL
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #eee', marginBottom: '20px' }}>
-        <h1>MAXIMUS v15 - Auditoria</h1>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '8px', cursor: 'pointer' }}><Printer size={18}/> Imprimir</button>
-        </div>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #eee', marginBottom: '20px', paddingBottom: '10px' }}>
+        <h1 style={{ color: '#333' }}>MAXIMUS v15 - Auditoria</h1>
+        <button 
+          onClick={() => window.print()} 
+          style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '10px 15px', cursor: 'pointer', backgroundColor: '#eee', border: '1px solid #ccc', borderRadius: '5px' }}
+        >
+          <Printer size={18}/> Imprimir
+        </button>
       </header>
 
-      <nav style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+      <nav style={{ display: 'flex', gap: '10px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '5px' }}>
         {['BÁSICO', 'MÁQUINAS', 'ELÉTRICA', 'SOCIAL'].map(aba => (
           <button 
             key={aba}
             onClick={() => setAbaAtiva(aba)}
-            style={{ padding: '10px 20px', backgroundColor: abaAtiva === aba ? '#1a73e8' : '#e0e0e0', color: abaAtiva === aba ? 'white' : 'black', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+            style={{ 
+              padding: '10px 20px', 
+              backgroundColor: abaAtiva === aba ? '#1a73e8' : '#e0e0e0', 
+              color: abaAtiva === aba ? 'white' : 'black', 
+              border: 'none', 
+              borderRadius: '5px', 
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            }}
           >
             {aba}
           </button>
         ))}
       </nav>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ backgroundColor: '#f8f9fa', textAlign: 'left' }}>
-            <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6' }}>CÓDIGO</th>
-            <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6' }}>DESCRIÇÃO</th>
-            <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6' }}>STATUS</th>
-          </tr>
-        </thead>
-        <tbody>
-          {itens.filter(i => i.tímpano === abaAtiva).map(item => (
-            <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '12px' }}>{item.código}</td>
-              <td style={{ padding: '12px' }}>{item.descrição}</td>
-              <td style={{ padding: '12px', color: item.status === 'CONFORME' ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>
-                {item.status === 'CONFORME' ? <CheckCircle size={16} /> : <AlertCircle size={16} />} {item.status}
-              </td>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#f8f9fa', textAlign: 'left' }}>
+              <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6' }}>CÓDIGO</th>
+              <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6' }}>DESCRIÇÃO</th>
+              <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6' }}>STATUS</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {itens
+              .filter(i => i.tímpano === abaAtiva) // Filtra pela coluna 'tímpano' do seu Supabase
+              .map(item => (
+                <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
+                  <td style={{ padding: '12px', fontWeight: 'bold' }}>{item.código}</td>
+                  <td style={{ padding: '12px' }}>{item.descrição}</td>
+                  <td style={{ 
+                    padding: '12px', 
+                    color: item.status === 'CONFORME' ? '#28a745' : '#dc3545', 
+                    fontWeight: 'bold',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px'
+                  }}>
+                    {item.status === 'CONFORME' ? <CheckCircle size={18} /> : <AlertCircle size={18} />} 
+                    {item.status}
+                  </td>
+                </tr>
+            ))}
+          </tbody>
+        </table>
+        {itens.filter(i => i.tímpano === abaAtiva).length === 0 && (
+          <p style={{ textAlign: 'center', padding: '20px', color: '#666' }}>Nenhum item encontrado nesta categoria.</p>
+        )}
+      </div>
     </div>
   );
 }
