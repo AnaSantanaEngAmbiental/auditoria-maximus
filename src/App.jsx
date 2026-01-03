@@ -19,9 +19,9 @@ export default function AplicativoMaximus() {
   }, [autorizado]);
 
   async function buscarDados() {
-    // Busca na tabela 'auditório_máximo' e ordena pelo campo 'codigo'
+    // Busca na tabela 'auditoria_maximus' e ordena pelo campo 'codigo'
     const { data, error } = await supabase
-      .from('auditório_máximo')
+      .from('auditoria_maximus')
       .select('*')
       .order('codigo');
     
