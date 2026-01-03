@@ -1,178 +1,190 @@
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import { 
   ShieldCheck, Truck, FileText, ClipboardList, Camera, 
-  Gavel, Printer, Plus, Trash2, Download, CheckCircle2,
-  AlertTriangle, Info, MapPin, Building
+  Printer, Trash2, Plus, Download, CheckCircle2,
+  User, Building2, MapPin, FileSignature
 } from 'lucide-react';
 
-// --- CONFIGURAÇÃO DO SUPABASE ---
-const supabaseUrl = 'https://gmhxmtlidgcgpstxiiwg.supabase.co'; 
-const supabaseKey = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs';
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-const ROTEIROS = [
-  { 
-    id: 'transp_perigoso', 
-    nome: 'Transporte de Prod. Perigosos', 
-    leis: ['Resolução ANTT 5.998/22', 'Decreto Federal 96.044/88', 'Norma SEMAS-PA 12/2020'],
-    docs: ['CIV', 'CIPP', 'MOPP', 'ANTT']
-  },
-  { 
-    id: 'posto_combustivel', 
-    nome: 'Posto de Combustíveis', 
-    leis: ['CONAMA 273/00', 'CONAMA 319/02', 'Portaria INMETRO 109/05'],
-    docs: ['Estanqueidade', 'ASME', 'Licença de Operação']
-  },
-  { 
-    id: 'industria_madeira', 
-    nome: 'Depósitos e Venda de Madeira', 
-    leis: ['Lei 12.651/12 (Código Florestal)', 'Instrução Normativa SEMAS 02/20'],
-    docs: ['DOF', 'CTF IBAMA']
-  }
-];
-
-export default function SilamMaximusV53() {
+export default function SilamMaximusV54() {
   const [aba, setAba] = useState('dashboard');
-  const [roteiroAtivo, setRoteiroAtivo] = useState(ROTEIROS[0]);
-  const [fotos, setFotos] = useState([]);
-  const [dadosEmpresa, setDadosEmpresa] = useState({ 
-    nome: '', cnpj: '', endereco: '', cidade: 'Belém', estado: 'PA', tecnico: '' 
+  const [dadosEmpresa, setDadosEmpresa] = useState({
+    razaoSocial: '', cnpj: '', endereco: '', cidade: '', estado: 'PA', tecnico: '', cpfTecnico: ''
   });
+  const [fotos, setFotos] = useState([]);
+  const [itensAuditoria, setItensAuditoria] = useState([
+    { id: 1, desc: 'Requerimento Padrão reconhecido', status: 'CONFORME' },
+    { id: 2, desc: 'Plano de Gerenciamento de Resíduos', status: 'PENDENTE' }
+  ]);
 
-  // Função para simular upload de fotos
-  const handleFotoUpload = (e) => {
-    const files = Array.from(e.target.files);
-    const novasFotos = files.map(file => ({
-      id: Math.random(),
-      url: URL.createObjectURL(file),
-      legenda: 'Digite a descrição técnica aqui...'
-    }));
-    setFotos([...fotos, ...novasFotos]);
+  // Função para Impressão de Documentos Específicos
+  const imprimirDocumento = (tipo) => {
+    setAba(tipo);
+    setTimeout(() => {
+      window.print();
+      setAba('docs');
+    }, 500);
   };
 
   return (
-    <div className="flex h-screen bg-[#F1F5F9] font-sans overflow-hidden">
-      {/* SIDEBAR NEON DARK */}
-      <aside className="w-80 bg-[#0F172A] text-white flex flex-col p-6 shadow-2xl">
-        <div className="flex items-center gap-3 mb-10 border-b border-slate-700/50 pb-8">
-          <div className="bg-green-500 p-2.5 rounded-2xl shadow-lg shadow-green-500/20 animate-pulse"><ShieldCheck size={32}/></div>
-          <div>
-            <h1 className="text-2xl font-black tracking-tighter italic leading-none text-white">MAXIMUS</h1>
-            <p className="text-[9px] text-green-400 font-bold uppercase tracking-[0.3em] mt-1">Engenharia Ambiental</p>
-          </div>
+    <div className="flex h-screen bg-[#F8FAFC] overflow-hidden">
+      {/* SIDEBAR */}
+      <aside className="w-72 bg-[#0F172A] text-white flex flex-col p-6 no-print">
+        <div className="flex items-center gap-3 mb-10 border-b border-slate-700 pb-6">
+          <div className="bg-green-500 p-2 rounded-xl"><ShieldCheck size={24}/></div>
+          <h1 className="text-xl font-black italic">MAXIMUS <span className="text-xs text-green-400">v5.4</span></h1>
         </div>
 
-        <nav className="space-y-3 flex-1">
-          <MenuBtn icon={<ClipboardList />} label="Checklist Auditoria" active={aba === 'checklist'} onClick={() => setAba('checklist')} />
-          <MenuBtn icon={<Camera />} label="Relatório Fotográfico" active={aba === 'fotos'} onClick={() => setAba('fotos')} />
-          <MenuBtn icon={<Gavel />} label="Base Legal & Normas" active={aba === 'leis'} onClick={() => setAba('leis')} />
-          <MenuBtn icon={<FileText />} label="Documentos (Ofícios)" active={aba === 'docs'} onClick={() => setAba('docs')} />
-          {roteiroAtivo.id === 'transp_perigoso' && (
-            <MenuBtn icon={<Truck />} label="Controle de Frota" active={aba === 'frota'} onClick={() => setAba('frota')} />
-          )}
+        <nav className="space-y-2">
+          <MenuBtn icon={<User />} label="Dados do Cliente" active={aba === 'empresa'} onClick={() => setAba('empresa')} />
+          <MenuBtn icon={<ClipboardList />} label="Checklist Técnico" active={aba === 'checklist'} onClick={() => setAba('checklist')} />
+          <MenuBtn icon={<Camera />} label="Relatório de Fotos" active={aba === 'fotos'} onClick={() => setAba('fotos')} />
+          <MenuBtn icon={<FileSignature />} label="Gerador de Ofícios" active={aba === 'docs'} onClick={() => setAba('docs')} />
         </nav>
-
-        <div className="mt-auto p-4 bg-slate-800/40 rounded-3xl border border-slate-700/50">
-           <label className="text-[9px] font-black text-slate-500 uppercase block mb-2 px-2">Configuração do Roteiro</label>
-           <select 
-             className="w-full bg-slate-900 border-none text-xs font-bold p-3 rounded-xl focus:ring-2 ring-green-500"
-             onChange={(e) => setRoteiroAtivo(ROTEIROS.find(r => r.id === e.target.value))}
-           >
-             {ROTEIROS.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
-           </select>
-        </div>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
+      {/* ÁREA PRINCIPAL */}
       <main className="flex-1 overflow-y-auto">
-        <header className="h-20 bg-white/70 backdrop-blur-xl border-b flex justify-between items-center px-10 sticky top-0 z-50">
-          <div className="flex items-center gap-3">
-             <div className="h-3 w-3 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.6)]"></div>
-             <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Status: Sistema Maximus Ativo</h2>
-          </div>
-          <button className="bg-slate-900 text-white px-8 py-2.5 rounded-2xl text-[11px] font-black uppercase hover:bg-green-600 transition-all shadow-xl">
-             Finalizar Processo
-          </button>
-        </header>
-
-        <div className="p-10 max-w-6xl mx-auto">
+        
+        {/* INTERFACE DE EDIÇÃO (NO-PRINT) */}
+        <div className="no-print p-10 max-w-5xl mx-auto">
           
-          {/* MÓDULO FOTOGRÁFICO */}
+          {/* TELA DE DADOS DA EMPRESA */}
+          {aba === 'empresa' && (
+            <div className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-100 animate-in fade-in">
+              <h2 className="text-2xl font-black text-slate-800 mb-6 uppercase italic">Configuração do Proponente</h2>
+              <div className="grid grid-cols-2 gap-6">
+                <InputGroup label="Razão Social" value={dadosEmpresa.razaoSocial} onChange={(v) => setDadosEmpresa({...dadosEmpresa, razaoSocial: v})} />
+                <InputGroup label="CNPJ" value={dadosEmpresa.cnpj} onChange={(v) => setDadosEmpresa({...dadosEmpresa, cnpj: v})} />
+                <InputGroup label="Responsável Técnico" value={dadosEmpresa.tecnico} onChange={(v) => setDadosEmpresa({...dadosEmpresa, tecnico: v})} />
+                <InputGroup label="CPF do Técnico" value={dadosEmpresa.cpfTecnico} onChange={(v) => setDadosEmpresa({...dadosEmpresa, cpfTecnico: v})} />
+                <InputGroup label="Endereço Completo" value={dadosEmpresa.endereco} onChange={(v) => setDadosEmpresa({...dadosEmpresa, endereco: v})} />
+              </div>
+            </div>
+          )}
+
+          {/* GERADOR DE DOCUMENTOS */}
+          {aba === 'docs' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-bottom-4">
+              <DocCard 
+                title="Ofício Requerimento" 
+                desc="Gera o requerimento padrão para SEMMA/SEMAS-PA"
+                onPrint={() => imprimirDocumento('print_oficio')}
+              />
+              <DocCard 
+                title="Procuração Ambiental" 
+                desc="Procuração para representação em processos"
+                onPrint={() => imprimirDocumento('print_procuracao')}
+              />
+            </div>
+          )}
+
+          {/* RELATÓRIO FOTOGRÁFICO (MODO EDIÇÃO) */}
           {aba === 'fotos' && (
-            <div className="space-y-8 animate-in fade-in duration-500">
-               <div className="flex justify-between items-end">
-                  <div>
-                    <h3 className="text-3xl font-black text-slate-800 italic uppercase">Vistoria de Campo</h3>
-                    <p className="text-sm text-slate-500 font-medium">Capture e organize evidências para o relatório técnico.</p>
-                  </div>
-                  <label className="bg-green-600 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase cursor-pointer hover:bg-green-700 shadow-lg">
-                    <Plus className="inline mr-2" size={16}/> Carregar Fotos
-                    <input type="file" multiple className="hidden" onChange={handleFotoUpload} />
-                  </label>
-               </div>
-
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {fotos.map((foto) => (
-                    <div key={foto.id} className="bg-white p-4 rounded-[2.5rem] shadow-sm border border-slate-200 group">
-                       <div className="relative h-64 w-full overflow-hidden rounded-[2rem] mb-4">
-                          <img src={foto.url} className="h-full w-full object-cover group-hover:scale-105 transition duration-500" alt="Evidência" />
-                          <button onClick={() => setFotos(fotos.filter(f => f.id !== foto.id))} className="absolute top-4 right-4 bg-red-500 p-2 rounded-xl text-white opacity-0 group-hover:opacity-100 transition">
-                             <Trash2 size={18}/>
-                          </button>
-                       </div>
-                       <textarea 
-                          placeholder="Digite a legenda técnica..."
-                          className="w-full bg-slate-50 border-none p-4 rounded-2xl text-xs font-bold text-slate-600 focus:ring-1 ring-green-500 outline-none h-20"
-                       />
-                    </div>
-                  ))}
-               </div>
-            </div>
-          )}
-
-          {/* BASE LEGAL */}
-          {aba === 'leis' && (
             <div className="space-y-6">
-               <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-200">
-                  <h3 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-3">
-                    <Gavel className="text-green-600"/> Base Legal Pertinente
-                  </h3>
-                  <div className="space-y-4">
-                    {roteiroAtivo.leis.map((lei, i) => (
-                      <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-green-200 transition">
-                        <span className="text-xs font-black text-slate-600 uppercase tracking-tight">{lei}</span>
-                        <button className="text-blue-600 hover:scale-110 transition"><Download size={18}/></button>
-                      </div>
-                    ))}
+              <div className="flex justify-between items-center bg-white p-6 rounded-3xl border">
+                <p className="text-xs font-black uppercase text-slate-400">Imagens da Vistoria</p>
+                <input type="file" multiple onChange={(e) => {
+                   const files = Array.from(e.target.files).map(f => ({ url: URL.createObjectURL(f), legenda: '' }));
+                   setFotos([...fotos, ...files]);
+                }} className="text-xs" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {fotos.map((f, i) => (
+                  <div key={i} className="bg-white p-4 rounded-2xl border">
+                    <img src={f.url} className="h-40 w-full object-cover rounded-xl mb-2" />
+                    <input 
+                      placeholder="Legenda técnica..." 
+                      className="w-full text-[10px] p-2 bg-slate-50 rounded-lg outline-none"
+                      onChange={(e) => {
+                        const newFotos = [...fotos];
+                        newFotos[i].legenda = e.target.value;
+                        setFotos(newFotos);
+                      }}
+                    />
                   </div>
-                  <div className="mt-8 p-6 bg-blue-50 rounded-[2rem] border border-blue-100 flex gap-4">
-                    <Info className="text-blue-600 shrink-0" />
-                    <p className="text-[11px] text-blue-800 font-bold leading-relaxed">
-                      Este sistema utiliza a base de dados atualizada da SEMAS-PA e CONAMA para o ano de 2024. 
-                      Certifique-se de validar se houve alterações em decretos municipais específicos.
-                    </p>
-                  </div>
-               </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* --- ÁREA DE IMPRESSÃO (HIDDEN ON SCREEN, VISIBLE ON PRINT) --- */}
+        <div className="print-only p-12 bg-white text-black font-serif">
+          {/* MODELO DO OFÍCIO */}
+          {aba === 'print_oficio' && (
+            <div className="max-w-[800px] mx-auto leading-relaxed">
+              <div className="text-center mb-12 border-b-2 border-black pb-4">
+                <h1 className="font-bold text-xl uppercase">Ofício de Requerimento Ambiental</h1>
+              </div>
+              <p className="text-right mb-10">Belém/PA, {new Date().toLocaleDateString()}</p>
+              <p className="mb-10 font-bold text-lg">À Secretaria Municipal de Meio Ambiente - SEMMA</p>
+              <p className="mb-6 indent-12 text-justify">
+                A empresa <strong>{dadosEmpresa.razaoSocial || "[RAZÃO SOCIAL]"}</strong>, inscrita no CNPJ sob nº <strong>{dadosEmpresa.cnpj || "[00.000.000/0001-00]"}</strong>, 
+                situada no endereço {dadosEmpresa.endereco || "[ENDEREÇO COMPLETO]"}, vem respeitosamente à presença de Vossa Senhoria requerer a 
+                <strong> LICENÇA DE OPERAÇÃO (LO)</strong> para a atividade licenciada conforme roteiro orientativo.
+              </p>
+              <p className="mb-20 indent-12 text-justify">
+                Nestes termos, pede deferimento.
+              </p>
+              <div className="mt-20 text-center border-t border-black w-64 mx-auto pt-2">
+                <p className="font-bold text-xs uppercase">{dadosEmpresa.razaoSocial || "Assinatura do Requerente"}</p>
+                <p className="text-[10px]">Representante Legal</p>
+              </div>
             </div>
           )}
 
-          {/* DEMAIS MÓDULOS (Omitidos para brevidade, mas mantidos na lógica) */}
-          {aba === 'checklist' && <div className="text-center p-20 opacity-30 font-black italic">Módulo de Checklist Sincronizado com Supabase...</div>}
-
+          {/* MODELO DO RELATÓRIO FOTOGRÁFICO */}
+          {aba === 'fotos' && fotos.length > 0 && (
+            <div className="p-4">
+               <h2 className="text-center font-bold text-xl uppercase mb-10 border-b-4 border-slate-900 pb-4">Anexo: Relatório Fotográfico de Vistoria</h2>
+               <div className="grid grid-cols-2 gap-10">
+                 {fotos.map((f, i) => (
+                   <div key={i} className="border p-2 break-inside-avoid">
+                     <img src={f.url} className="w-full h-auto mb-2" />
+                     <p className="text-sm font-bold text-center bg-slate-100 p-2 italic uppercase">Foto {i+1}: {f.legenda}</p>
+                   </div>
+                 ))}
+               </div>
+            </div>
+          )}
         </div>
       </main>
     </div>
   );
 }
 
-// COMPONENTES DE DESIGN SYSTEM
+// COMPONENTES DE INTERFACE
 function MenuBtn({ icon, label, active, onClick }) {
   return (
-    <button onClick={onClick} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-300 text-[11px] font-black uppercase tracking-tighter ${
-      active ? 'bg-green-600 text-white shadow-xl shadow-green-900/40 translate-x-2' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+    <button onClick={onClick} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition text-xs font-black uppercase ${
+      active ? 'bg-green-600 text-white shadow-lg shadow-green-900/40' : 'text-slate-400 hover:bg-slate-800'
     }`}>
-      {React.cloneElement(icon, { size: 18 })} {label}
+      {icon} {label}
     </button>
+  );
+}
+
+function InputGroup({ label, value, onChange }) {
+  return (
+    <div className="space-y-1">
+      <label className="text-[10px] font-black text-slate-400 uppercase ml-2">{label}</label>
+      <input 
+        type="text" value={value} onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl outline-none focus:border-green-500 transition font-bold"
+      />
+    </div>
+  );
+}
+
+function DocCard({ title, desc, onPrint }) {
+  return (
+    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl transition group">
+      <div className="bg-blue-50 w-12 h-12 rounded-2xl flex items-center justify-center text-blue-600 mb-6 group-hover:scale-110 transition"><Printer /></div>
+      <h4 className="font-black text-slate-800 uppercase italic mb-2">{title}</h4>
+      <p className="text-xs text-slate-400 font-medium mb-6 leading-relaxed">{desc}</p>
+      <button onClick={onPrint} className="w-full bg-slate-900 text-white py-4 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2 hover:bg-blue-600 transition">
+        <Printer size={16}/> Gerar e Imprimir
+      </button>
+    </div>
   );
 }
