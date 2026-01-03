@@ -63,9 +63,12 @@ export default function SilamMaximusV5() {
   // Lógica de Filtro para as Abas
   const getItensPorAba = (categoria) => {
     return itens.filter(item => {
-      const catBanco = (item.categoria || "").toUpperCase();
+      // Normaliza categoria para bater com o banco (BÁSICA, TÉCNICA, etc)
+      const catBanco = (item.categoria || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+      const catBusca = categoria.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+      
       const desc = (item['descricao de condicionante'] || item['descrição de condicionante'] || "").toLowerCase();
-      return catBanco === categoria && desc.includes(filtro.toLowerCase());
+      return catBanco === catBusca && desc.includes(filtro.toLowerCase());
     }).sort((a, b) => Number(a.codigo) - Number(b.codigo));
   };
 
@@ -174,7 +177,7 @@ export default function SilamMaximusV5() {
                   {getItensPorAba(abaAtiva).map(item => (
                     <tr key={item.id} className="hover:bg-blue-50/30 transition">
                       <td className="p-4 font-bold text-slate-400 text-xs">{item.codigo}</td>
-                      <td className="p-4 text-xs font-bold text-slate-700 uppercase leading-relaxed">{item['descricao de condicionante'] || item['descrição de condicionante']}</td>
+                      <td className="p-4 text-xs font-bold text-slate-700 uppercase leading-relaxed text-justify">{item['descricao de condicionante'] || item['descrição de condicionante']}</td>
                       <td className="p-4">
                         <StatusBadge status={item.status} />
                       </td>
@@ -235,7 +238,7 @@ function SidebarItem({ icon, label, active, onClick }) {
     <button 
       onClick={onClick}
       className={`w-full flex items-center p-3 text-[11px] font-black rounded-xl transition mb-1 ${
-        active ? 'bg-green-900 text-white border-r-4 border-green-400' : 'text-slate-600 hover:bg-slate-100'
+        active ? 'bg-green-900 text-white border-r-4 border-green-400 shadow-lg' : 'text-slate-600 hover:bg-slate-100'
       }`}
     >
       <span className="mr-3">{icon}</span>
