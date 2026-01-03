@@ -109,7 +109,7 @@ export default function AplicativoMaximus() {
                   {/* Ajustado para 'código' com acento conforme sua tabela */}
                   <td style={{ padding: '12px', fontWeight: 'bold' }}>{item.código}</td>
                   
-                  {/* Ajustado para 'descrição' com acento conforme sua tabela */}
+                  {/* Ajustado para 'descrição de condicionante' com acento conforme sua tabela */}
                   <td style={{ padding: '12px' }}>{item.descriçãodecondicionante}</td>
                   
                   <td style={{ 
