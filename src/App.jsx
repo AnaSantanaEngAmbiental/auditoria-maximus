@@ -21,7 +21,7 @@ export default function AplicativoMaximus() {
     const { data, error } = await supabase
       .from('auditoria_maximus')
       .select('*')
-      .order('código');
+      .order('codigo');
     if (data) setItens(data);
   }
 
@@ -53,7 +53,7 @@ export default function AplicativoMaximus() {
 
   const itensFiltrados = itens.filter(i => 
     i.categoria === abaAtiva && 
-    (i['descrição de condicionante'] || '').toLowerCase().includes(filtro.toLowerCase())
+    (i['descricao de condicionante'] || '').toLowerCase().includes(filtro.toLowerCase())
   );
 
   return (
@@ -105,16 +105,16 @@ export default function AplicativoMaximus() {
           <thead>
             <tr style={{ backgroundColor: '#004a99', color: 'white', textAlign: 'left' }}>
               <th style={{ padding: '15px', width: '80px' }}>ID</th>
-              <th style={{ padding: '15px' }}>DESCRIÇÃO DA CONDICIONANTE</th>
+              <th style={{ padding: '15px' }}>DESCRICAO DA CONDICIONANTE</th>
               <th style={{ padding: '15px', width: '150px' }}>STATUS</th>
             </tr>
           </thead>
           <tbody>
             {itensFiltrados.map((item, index) => (
               <tr key={item.id} style={{ backgroundColor: index % 2 === 0 ? '#fff' : '#f9fbff', borderBottom: '1px solid #eee' }}>
-                <td style={{ padding: '15px', fontWeight: 'bold', color: '#004a99' }}>{item.código}</td>
+                <td style={{ padding: '15px', fontWeight: 'bold', color: '#004a99' }}>{item.codigo}</td>
                 <td style={{ padding: '15px', lineHeight: '1.5', fontSize: '14px', textAlign: 'justify' }}>
-                  {item['descrição de condicionante']}
+                  {item['descricao de condicionante']}
                 </td>
                 <td style={{ padding: '15px' }}>
                   <span style={{ 
