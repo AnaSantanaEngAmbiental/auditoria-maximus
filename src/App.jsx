@@ -73,7 +73,7 @@ export default function AplicativoMaximus() {
       </header>
 
       <nav style={{ display: 'flex', gap: '10px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '5px' }}>
-        {['BÁSICO', 'MÁQUINAS', 'ELÉTRICA', 'SOCIAL'].map(aba => (
+        {['BÁSICO', 'TÉCNICA', 'PROJETO', 'DIRETRIZES'].map(aba => (
           <button 
             key={aba}
             onClick={() => setAbaAtiva(aba)}
@@ -103,7 +103,7 @@ export default function AplicativoMaximus() {
           </thead>
           <tbody>
             {itens
-              .filter(i => i.tímpano === abaAtiva)
+              .filter(i => i.categoria === abaAtiva)
               .map(item => (
                 <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
                   {/* Ajustado para 'codigo' sem acento conforme sua tabela */}
@@ -129,7 +129,7 @@ export default function AplicativoMaximus() {
         </table>
         
         {/* Aviso caso a categoria esteja vazia */}
-        {itens.filter(i => i.tímpano === abaAtiva).length === 0 && (
+        {itens.filter(i => i.categoria === abaAtiva).length === 0 && (
           <p style={{ textAlign: 'center', padding: '40px', color: '#666', backgroundColor: '#f9f9f9', marginTop: '10px' }}>
             Nenhum item encontrado na categoria <strong>{abaAtiva}</strong>.
           </p>
