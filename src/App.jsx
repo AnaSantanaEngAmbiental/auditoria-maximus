@@ -9,7 +9,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default function AplicativoMaximus() {
   const [itens, setItens] = useState([]);
-  const [abaAtiva, setAbaAtiva] = useState('BÁSICO');
+  const [abaAtiva, setAbaAtiva] = useState('BÁSICA');
   const [autorizado, setAutorizado] = useState(false);
   const [senhaInput, setSenhaInput] = useState('');
 
