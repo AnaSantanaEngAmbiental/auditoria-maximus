@@ -19,11 +19,11 @@ export default function AplicativoMaximus() {
   }, [autorizado]);
 
   async function buscarDados() {
-    // Busca na tabela 'auditório_máximo' e ordena pelo 'código'
+    // Busca na tabela 'auditório_máximo' e ordena pelo campo 'codigo'
     const { data, error } = await supabase
       .from('auditório_máximo')
       .select('*')
-      .order('código');
+      .order('codigo');
     
     if (data) {
       setItens(data);
@@ -59,7 +59,7 @@ export default function AplicativoMaximus() {
     );
   }
 
-  // TELA PRINCIPAL
+  // TELA PRINCIPAL (APÓS LOGIN)
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #eee', marginBottom: '20px', paddingBottom: '10px' }}>
@@ -103,11 +103,15 @@ export default function AplicativoMaximus() {
           </thead>
           <tbody>
             {itens
-              .filter(i => i.tímpano === abaAtiva) // Filtra pela coluna 'tímpano' do seu Supabase
+              .filter(i => i.tímpano === abaAtiva)
               .map(item => (
                 <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '12px', fontWeight: 'bold' }}>{item.código}</td>
-                  <td style={{ padding: '12px' }}>{item.descrição}</td>
+                  {/* Ajustado para 'codigo' sem acento conforme sua tabela */}
+                  <td style={{ padding: '12px', fontWeight: 'bold' }}>{item.codigo}</td>
+                  
+                  {/* Ajustado para 'descricao' sem acento conforme sua tabela */}
+                  <td style={{ padding: '12px' }}>{item.descricao}</td>
+                  
                   <td style={{ 
                     padding: '12px', 
                     color: item.status === 'CONFORME' ? '#28a745' : '#dc3545', 
@@ -123,8 +127,12 @@ export default function AplicativoMaximus() {
             ))}
           </tbody>
         </table>
+        
+        {/* Aviso caso a categoria esteja vazia */}
         {itens.filter(i => i.tímpano === abaAtiva).length === 0 && (
-          <p style={{ textAlign: 'center', padding: '20px', color: '#666' }}>Nenhum item encontrado nesta categoria.</p>
+          <p style={{ textAlign: 'center', padding: '40px', color: '#666', backgroundColor: '#f9f9f9', marginTop: '10px' }}>
+            Nenhum item encontrado na categoria <strong>{abaAtiva}</strong>.
+          </p>
         )}
       </div>
     </div>
