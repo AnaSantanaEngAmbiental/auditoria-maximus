@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { CheckCircle, AlertCircle, Printer, Lock } from 'lucide-react';
+import { CheckCircle, AlertCircle, Printer, Lock, Search } from 'lucide-react';
 
-// --- CONFIGURAÇÃO ---
 const supabaseUrl = 'https://gmhxmtlidgcgpstxiiwg.supabase.co'; 
 const supabaseKey = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs';
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -12,79 +11,77 @@ export default function AplicativoMaximus() {
   const [abaAtiva, setAbaAtiva] = useState('BÁSICA');
   const [autorizado, setAutorizado] = useState(false);
   const [senhaInput, setSenhaInput] = useState('');
+  const [filtro, setFiltro] = useState('');
 
-  // Busca os dados da tabela
   useEffect(() => {
     if (autorizado) buscarDados();
   }, [autorizado]);
 
   async function buscarDados() {
-    // Busca na tabela 'auditoria_maximus' e ordena pelo campo 'código'
     const { data, error } = await supabase
       .from('auditoria_maximus')
       .select('*')
       .order('código');
-    
-    if (data) {
-      setItens(data);
-    } else if (error) {
-      console.error("Erro ao buscar dados:", error);
-    }
+    if (data) setItens(data);
   }
 
-  // TELA DE LOGIN
   if (!autorizado) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'sans-serif', backgroundColor: '#f0f2f5' }}>
-        <div style={{ padding: '30px', backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', textAlign: 'center' }}>
-          <Lock size={48} style={{ marginBottom: '10px', color: '#1a73e8' }} />
-          <h2>Acesso Restrito</h2>
-          <p>Sistema Auditoria Maximus</p>
+        <div style={{ padding: '40px', backgroundColor: 'white', borderRadius: '15px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', textAlign: 'center' }}>
+          <Lock size={48} style={{ marginBottom: '15px', color: '#004a99' }} />
+          <h2 style={{ color: '#333', marginBottom: '5px' }}>SILAM</h2>
+          <p style={{ color: '#666', marginBottom: '20px' }}>Sistema Integrado de Auditoria</p>
           <input 
             type="password" 
-            placeholder="Digite a senha" 
+            placeholder="Senha de Acesso" 
             value={senhaInput}
             onChange={(e) => setSenhaInput(e.target.value)}
-            style={{ padding: '12px', width: '200px', borderRadius: '5px', border: '1px solid #ccc', marginBottom: '15px' }}
+            style={{ padding: '12px', width: '250px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '15px', fontSize: '16px' }}
           />
           <br />
           <button 
             onClick={() => senhaInput === 'maximus2026' ? setAutorizado(true) : alert('Senha incorreta!')}
-            style={{ padding: '12px 30px', backgroundColor: '#1a73e8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
+            style={{ padding: '12px 50px', backgroundColor: '#004a99', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}
           >
-            Entrar no Sistema
+            ENTRAR
           </button>
         </div>
       </div>
     );
   }
 
-  // TELA PRINCIPAL (APÓS LOGIN)
+  const itensFiltrados = itens.filter(i => 
+    i.categoria === abaAtiva && 
+    (i['descrição de condicionante'] || '').toLowerCase().includes(filtro.toLowerCase())
+  );
+
   return (
-    <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #eee', marginBottom: '20px', paddingBottom: '10px' }}>
-        <h1 style={{ color: '#333' }}>MAXIMUS v15 - Auditoria</h1>
-        <button 
-          onClick={() => window.print()} 
-          style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '10px 15px', cursor: 'pointer', backgroundColor: '#eee', border: '1px solid #ccc', borderRadius: '5px' }}
-        >
-          <Printer size={18}/> Imprimir
+    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1200px', margin: '0 auto' }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', borderBottom: '3px solid #004a99', paddingBottom: '15px' }}>
+        <div>
+          <h1 style={{ color: '#004a99', margin: 0 }}>SILAM - Auditoria</h1>
+          <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>Gestão de Condicionantes Ambientais</p>
+        </div>
+        <button onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', backgroundColor: '#eee', border: '1px solid #ccc', borderRadius: '8px', cursor: 'pointer' }}>
+          <Printer size={18}/> Imprimir Relatório
         </button>
       </header>
 
-      <nav style={{ display: 'flex', gap: '10px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '5px' }}>
+      <nav style={{ display: 'flex', gap: '8px', marginBottom: '25px', overflowX: 'auto', paddingBottom: '10px' }}>
         {['BÁSICA', 'TÉCNICA', 'PROJETO', 'DIRETRIZ'].map(aba => (
           <button 
             key={aba}
             onClick={() => setAbaAtiva(aba)}
             style={{ 
-              padding: '10px 20px', 
-              backgroundColor: abaAtiva === aba ? '#1a73e8' : '#e0e0e0', 
-              color: abaAtiva === aba ? 'white' : 'black', 
-              border: 'none', 
-              borderRadius: '5px', 
+              padding: '12px 25px', 
+              backgroundColor: abaAtiva === aba ? '#004a99' : '#fff', 
+              color: abaAtiva === aba ? 'white' : '#555', 
+              border: '2px solid #004a99', 
+              borderRadius: '10px', 
               cursor: 'pointer',
-              fontWeight: 'bold'
+              fontWeight: 'bold',
+              transition: 'all 0.3s'
             }}
           >
             {aba}
@@ -92,47 +89,58 @@ export default function AplicativoMaximus() {
         ))}
       </nav>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
+      <div style={{ position: 'relative', marginBottom: '20px' }}>
+        <Search style={{ position: 'absolute', left: '12px', top: '12px', color: '#999' }} size={20} />
+        <input 
+          type="text"
+          placeholder="Pesquisar condicionante..."
+          value={filtro}
+          onChange={(e) => setFiltro(e.target.value)}
+          style={{ width: '100%', padding: '12px 12px 12px 45px', borderRadius: '10px', border: '1px solid #ddd', boxSizing: 'border-box', fontSize: '16px' }}
+        />
+      </div>
+
+      <div style={{ backgroundColor: '#fff', borderRadius: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ backgroundColor: '#f8f9fa', textAlign: 'left' }}>
-              <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6' }}>CÓDIGO</th>
-              <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6' }}>DESCRIÇÃO DE CONDICIONANTE</th>
-              <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6' }}>STATUS</th>
+            <tr style={{ backgroundColor: '#004a99', color: 'white', textAlign: 'left' }}>
+              <th style={{ padding: '15px', width: '80px' }}>ID</th>
+              <th style={{ padding: '15px' }}>DESCRIÇÃO DA CONDICIONANTE</th>
+              <th style={{ padding: '15px', width: '150px' }}>STATUS</th>
             </tr>
           </thead>
           <tbody>
-            {itens
-              .filter(i => i.categoria === abaAtiva)
-              .map(item => (
-                <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
-                  {/* Ajustado para 'código' com acento conforme sua tabela */}
-                  <td style={{ padding: '12px', fontWeight: 'bold' }}>{item.código}</td>
-                  
-                  {/* Ajustado para 'descrição de condicionante' com acento conforme sua tabela */}
-                  <td style={{ padding: '12px' }}>{item['descrição de condicionante']}</td>
-                  
-                  <td style={{ 
-                    padding: '12px', 
-                    color: item.status === 'CONFORME' ? '#28a745' : '#dc3545', 
+            {itensFiltrados.map((item, index) => (
+              <tr key={item.id} style={{ backgroundColor: index % 2 === 0 ? '#fff' : '#f9fbff', borderBottom: '1px solid #eee' }}>
+                <td style={{ padding: '15px', fontWeight: 'bold', color: '#004a99' }}>{item.código}</td>
+                <td style={{ padding: '15px', lineHeight: '1.5', fontSize: '14px', textAlign: 'justify' }}>
+                  {item['descrição de condicionante']}
+                </td>
+                <td style={{ padding: '15px' }}>
+                  <span style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '5px',
+                    padding: '6px 12px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
                     fontWeight: 'bold',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px'
+                    backgroundColor: item.status === 'CONFORME' ? '#e6f4ea' : '#fce8e6',
+                    color: item.status === 'CONFORME' ? '#1e7e34' : '#d93025',
+                    width: 'fit-content'
                   }}>
-                    {item.status === 'CONFORME' ? <CheckCircle size={18} /> : <AlertCircle size={18} />} 
+                    {item.status === 'CONFORME' ? <CheckCircle size={14} /> : <AlertCircle size={14} />} 
                     {item.status}
-                  </td>
-                </tr>
+                  </span>
+                </td>
+              </tr>
             ))}
           </tbody>
         </table>
-        
-        {/* Aviso caso a categoria esteja vazia */}
-        {itens.filter(i => i.categoria === abaAtiva).length === 0 && (
-          <p style={{ textAlign: 'center', padding: '40px', color: '#666', backgroundColor: '#f9f9f9', marginTop: '10px' }}>
-            Nenhum item encontrado na categoria <strong>{abaAtiva}</strong>.
-          </p>
+        {itensFiltrados.length === 0 && (
+          <div style={{ padding: '50px', textAlign: 'center', color: '#999' }}>
+            Nenhum dado encontrado para esta categoria.
+          </div>
         )}
       </div>
     </div>
