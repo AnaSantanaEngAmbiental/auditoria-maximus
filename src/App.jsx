@@ -8,7 +8,7 @@ import {
 
 // --- CONFIGURAÇÃO SUPABASE ---
 const SUPABASE_URL = 'https://gmhxmtlidgcgpstxiiwg.supabase.co';
-const SUPABASE_KEY = 'SUA_ANON_KEY_AQUI'; 
+const SUPABASE_KEY = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'; 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 export default function SilamMaximusV10() {
