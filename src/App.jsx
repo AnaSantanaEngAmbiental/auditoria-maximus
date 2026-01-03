@@ -3,15 +3,15 @@ import { createClient } from '@supabase/supabase-js';
 import { 
   ShieldCheck, UploadCloud, FileText, Camera, Printer, Gavel, 
   CheckCircle2, AlertTriangle, FileSignature, Database, 
-  Building2, Clock, CheckCircle, Scale, FileOutput, MapPin, HardDrive
+  Building2, Clock, CheckCircle, Scale, FileOutput, MapPin, HardDrive, Key
 } from 'lucide-react';
 
-// --- CONFIGURAÇÃO SUPABASE ---
+// --- CONFIGURAÇÃO SUPABASE INTEGRADA ---
 const SUPABASE_URL = 'https://gmhxmtlidgcgpstxiiwg.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'; 
+const SUPABASE_KEY = 'maximus 2026'; // Senha restaurada conforme solicitado
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-export default function SilamMaximusV13() {
+export default function SilamMaximusV14() {
   const [aba, setAba] = useState('dashboard');
   const [loading, setLoading] = useState(false);
   const [dados, setDados] = useState({
@@ -21,16 +21,16 @@ export default function SilamMaximusV13() {
   const [fotosDb, setFotosDb] = useState([]);
   const [arquivosDb, setArquivosDb] = useState([]);
 
-  // --- BASE LEGAL COMPLETA (PARÁ & NACIONAL) ---
+  // --- BASE LEGAL COMPLETA E EXAUSTIVA (PARÁ/BRASIL) ---
   const baseLegalCompilada = [
-    { ref: 'Lei Est. 5.887/95', desc: 'Política Estadual de Meio Ambiente do Pará.', contexto: 'Geral' },
-    { ref: 'Res. COEMA 162/21', desc: 'Competência Municipal para licenciamento local no Pará.', contexto: 'Municípios' },
-    { ref: 'CONAMA 237/97', desc: 'Procedimentos e critérios para Licenciamento Ambiental.', contexto: 'Geral' },
-    { ref: 'ANTT 5.998/22', desc: 'Regulamento de Transporte Rodoviário de Produtos Perigosos.', contexto: 'Transporte' },
-    { ref: 'NBR 14725:2023', desc: 'FDS - Ficha de Dados de Segurança (Antiga FISPQ).', contexto: 'Químicos' },
-    { ref: 'NBR 15481:2023', desc: 'Checklist de requisitos operacionais, saúde e segurança.', contexto: 'Operacional' },
-    { ref: 'NBR 15480:2021', desc: 'Plano de Ação de Emergência (PAE).', contexto: 'Emergência' },
-    { ref: 'Lei 12.305/10', desc: 'Política Nacional de Resíduos Sólidos.', contexto: 'Fábricas/Indústrias' }
+    { ref: 'Lei Est. 5.887/95', desc: 'Política Estadual de Meio Ambiente do Pará.', contexto: 'Estruturante' },
+    { ref: 'Res. COEMA 162/21', desc: 'Define competência Municipal no licenciamento no Pará.', contexto: 'Jurisdição' },
+    { ref: 'Inst. Norm. 11/19 SEMAS', desc: 'Roteiro de licenciamento e prazos de renovação (120 dias).', contexto: 'Procedimental' },
+    { ref: 'Res. ANTT 5.998/22', desc: 'Regulamento para Transporte de Produtos Perigosos.', contexto: 'Logística' },
+    { ref: 'ABNT NBR 14725:2023', desc: 'Classificação e Rotulagem GHS (Substitui FISPQ).', contexto: 'Segurança' },
+    { ref: 'ABNT NBR 15481:2023', desc: 'Requisitos para transporte de produtos perigosos.', contexto: 'Operacional' },
+    { ref: 'Lei Federal 12.305/10', desc: 'Plano de Gerenciamento de Resíduos Sólidos (PGRS).', contexto: 'Resíduos' },
+    { ref: 'Dec. Fed. 6.514/08', desc: 'Infrações e Sanções Administrativas Ambientais.', contexto: 'Penal' }
   ];
 
   useEffect(() => { if (dados.cnpj.length >= 14) carregarDossie(); }, [dados.cnpj]);
@@ -44,7 +44,7 @@ export default function SilamMaximusV13() {
   }
 
   const handleFileUpload = async (e, cat) => {
-    if (!dados.cnpj) return alert("Insira o CNPJ para vincular os dados.");
+    if (!dados.cnpj) return alert("Por favor, identifique o CNPJ do cliente primeiro.");
     setLoading(true);
     const files = Array.from(e.target.files);
     for (const file of files) {
@@ -63,123 +63,133 @@ export default function SilamMaximusV13() {
   };
 
   return (
-    <div className="flex h-screen bg-[#F1F5F9] font-sans">
+    <div className="flex h-screen bg-slate-50 font-sans text-slate-800">
+      
       {/* SIDEBAR */}
       <aside className="w-72 bg-[#0F172A] text-white flex flex-col p-6 shadow-2xl no-print">
-        <div className="flex items-center gap-2 mb-10 border-b border-slate-700 pb-6">
-          <ShieldCheck className="text-green-500" size={28}/>
-          <h1 className="text-lg font-black italic uppercase tracking-tighter">MAXIMUS <span className="text-green-400">v13</span></h1>
+        <div className="flex items-center gap-3 mb-10 border-b border-slate-700 pb-6">
+          <div className="bg-green-500 p-2 rounded-xl"><ShieldCheck size={24}/></div>
+          <h1 className="text-lg font-black italic">MAXIMUS <span className="text-green-400">V14</span></h1>
         </div>
+        
         <nav className="space-y-1 flex-1">
-          <MenuBtn icon={<Building2/>} label="Dossiê Cliente" active={aba === 'dashboard'} onClick={() => setAba('dashboard')} />
-          <MenuBtn icon={<UploadCloud/>} label="Arraste e Cole" active={aba === 'upload'} onClick={() => setAba('upload')} />
-          <MenuBtn icon={<Scale/>} label="Base Legal Completa" active={aba === 'leis'} onClick={() => setAba('leis')} />
+          <MenuBtn icon={<Building2/>} label="Cadastro Cliente" active={aba === 'dashboard'} onClick={() => setAba('dashboard')} />
+          <MenuBtn icon={<UploadCloud/>} label="Upload de Provas" active={aba === 'upload'} onClick={() => setAba('upload')} />
+          <MenuBtn icon={<Scale/>} label="Biblioteca Legal" active={aba === 'leis'} onClick={() => setAba('leis')} />
           <MenuBtn icon={<Camera/>} label="Relatório Fotos" active={aba === 'fotos'} onClick={() => setAba('fotos')} />
-          <MenuBtn icon={<FileSignature/>} label="Gerador de Ofício" active={aba === 'print_oficio'} onClick={() => setAba('print_oficio')} />
+          <MenuBtn icon={<FileSignature/>} label="Gerar Ofício" active={aba === 'print_oficio'} onClick={() => setAba('print_oficio')} />
           <MenuBtn icon={<FileOutput/>} label="Procuração" active={aba === 'print_proc'} onClick={() => setAba('print_proc')} />
         </nav>
-        <div className="mt-auto p-4 bg-slate-900 rounded-2xl border border-slate-700">
-           <p className="text-[9px] font-black text-slate-500 uppercase mb-2">CNPJ em Análise</p>
-           <input className="w-full bg-transparent border-none text-xs font-bold text-green-400 outline-none" value={dados.cnpj} onChange={(e)=>setDados({...dados, cnpj: e.target.value})}/>
+
+        <div className="mt-auto p-4 bg-slate-800/50 rounded-2xl border border-slate-700 shadow-inner">
+           <div className="flex items-center gap-2 mb-2">
+             <Key size={12} className="text-green-400"/>
+             <p className="text-[10px] font-black text-slate-400 uppercase">Sistema Autenticado</p>
+           </div>
+           <input className="w-full bg-transparent border-none text-[11px] font-bold text-green-500 outline-none" value={dados.cnpj} onChange={(e)=>setDados({...dados, cnpj: e.target.value})} placeholder="00.000.000/0000-00"/>
         </div>
       </aside>
 
       <main className="flex-1 overflow-y-auto">
-        {/* HEADER */}
-        <header className="h-16 bg-white border-b flex justify-between items-center px-10 no-print">
-           <div className="flex items-center gap-3">
+        <header className="h-16 bg-white/80 backdrop-blur-md border-b flex justify-between items-center px-10 sticky top-0 z-50 no-print">
+           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
              <div className={`h-2 w-2 rounded-full ${loading ? 'bg-amber-500 animate-ping' : 'bg-green-500'}`}></div>
-             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">PhD Engineering Intelligence</span>
-           </div>
-           <button onClick={() => window.print()} className="bg-slate-900 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase">Imprimir Documento</button>
+             {loading ? 'Processando Inteligência de Dados...' : `Ativo: ${dados.razao || "Maximus Enterprise"}`}
+           </span>
+           <button onClick={() => window.print()} className="bg-slate-900 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-green-600 transition shadow-lg">Imprimir Documentação</button>
         </header>
 
         <div className="p-10 max-w-5xl mx-auto">
           
-          {/* ABA: BASE LEGAL */}
+          {/* ABA: BASE LEGAL COMPLETA */}
           {aba === 'leis' && (
-            <div className="space-y-6 animate-in fade-in">
-              <h2 className="text-xl font-black text-slate-800 italic uppercase">Arcabouço Legal do Licenciamento</h2>
+            <div className="space-y-6 animate-in slide-in-from-right duration-500">
+              <h2 className="text-2xl font-black text-slate-800 italic uppercase flex items-center gap-3"><Gavel className="text-blue-500"/> Fundamentação Técnica e Jurídica</h2>
               <div className="grid grid-cols-1 gap-3">
                 {baseLegalCompilada.map((lei, i) => (
-                  <div key={i} className="bg-white p-5 rounded-3xl border border-slate-100 flex items-center justify-between group hover:border-blue-500 transition shadow-sm">
+                  <div key={i} className="bg-white p-5 rounded-[2rem] border border-slate-100 flex items-center justify-between group hover:border-blue-400 hover:shadow-md transition cursor-default">
                     <div className="flex items-center gap-4">
-                      <div className="bg-slate-50 p-3 rounded-2xl text-slate-400 group-hover:text-blue-500 transition"><Gavel size={20}/></div>
+                      <div className="bg-slate-50 p-3 rounded-2xl text-slate-300 group-hover:text-blue-500 transition"><Scale size={20}/></div>
                       <div>
                         <h4 className="text-sm font-black text-slate-700">{lei.ref}</h4>
-                        <p className="text-[11px] text-slate-500 font-bold tracking-tight">{lei.desc}</p>
+                        <p className="text-[11px] text-slate-500 font-bold">{lei.desc}</p>
                       </div>
                     </div>
-                    <span className="text-[9px] font-black bg-slate-100 px-3 py-1 rounded-full text-slate-400">{lei.contexto}</span>
+                    <span className="text-[9px] font-black bg-blue-50 text-blue-500 px-4 py-1.5 rounded-full uppercase">{lei.contexto}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* ABA: RELATÓRIO FOTOGRÁFICO */}
+          {/* ABA: RELATÓRIO FOTOGRÁFICO PROFISSIONAL */}
           {aba === 'fotos' && (
-            <div className="space-y-8 animate-in zoom-in">
-               <div className="flex justify-between items-center no-print">
-                  <h2 className="text-xl font-black text-slate-800 italic uppercase">Relatório Fotográfico Técnico</h2>
-                  <label className="bg-blue-600 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase cursor-pointer hover:bg-blue-700 shadow-lg">
-                    Inserir Fotos de Inspeção <input type="file" multiple hidden onChange={(e)=>handleFileUpload(e, 'FOTO')}/>
+            <div className="space-y-8 animate-in zoom-in duration-300">
+               <div className="flex justify-between items-end no-print">
+                  <div>
+                    <h2 className="text-2xl font-black text-slate-800 italic uppercase">Laudo Fotográfico de Campo</h2>
+                    <p className="text-xs font-bold text-slate-400 mt-1">Conforme orientações da SEMAS-PA e normas ABNT</p>
+                  </div>
+                  <label className="bg-blue-600 text-white px-8 py-3.5 rounded-[1.5rem] text-[10px] font-black uppercase cursor-pointer hover:bg-blue-700 shadow-xl transition-all">
+                    Importar Evidências <input type="file" multiple hidden onChange={(e)=>handleFileUpload(e, 'FOTO')}/>
                   </label>
                </div>
                <div className="grid grid-cols-2 gap-8 print:grid-cols-1">
                   {fotosDb.map((f, i) => (
-                    <div key={i} className="bg-white p-6 rounded-[3rem] border shadow-sm break-inside-avoid">
-                       <img src={f.url_publica} className="h-64 w-full object-cover rounded-[2rem] mb-4 border" alt="Evidência"/>
-                       <textarea className="w-full bg-slate-50 border-none p-4 rounded-2xl text-xs font-bold text-slate-600" placeholder="Digite a legenda técnica (Ex: Placas de identificação e telefones de emergência conforme NBR 7500)..."/>
+                    <div key={i} className="bg-white p-6 rounded-[3rem] border shadow-sm break-inside-avoid ring-1 ring-slate-100">
+                       <img src={f.url_publica} className="h-72 w-full object-cover rounded-[2.5rem] mb-5 border border-slate-100" alt="Evidência Ambiental"/>
+                       <div className="px-2">
+                          <p className="text-[10px] font-black text-blue-500 uppercase mb-2 tracking-widest italic">Evidência #{i+1}</p>
+                          <textarea className="w-full bg-slate-50 border-none p-5 rounded-2xl text-[11px] font-bold text-slate-600 h-28 focus:ring-2 ring-green-500" placeholder="Descreva tecnicamente esta evidência..."/>
+                       </div>
                     </div>
                   ))}
                </div>
             </div>
           )}
 
-          {/* DOCUMENTOS PARA IMPRESSÃO */}
-          <div className="print:block">
-            {aba === 'print_oficio' && (
-              <div className="bg-white p-16 leading-relaxed text-slate-800 animate-in fade-in">
-                <h1 className="text-center font-bold text-xl uppercase underline mb-20">Ofício de Requerimento Padrão</h1>
-                <p className="text-right mb-12">{dados.cidade}/PA, {new Date().toLocaleDateString('pt-BR')}</p>
-                <p className="mb-10 font-bold">À Secretaria de Meio Ambiente de {dados.cidade}</p>
-                <p className="indent-12 text-justify mb-8">
-                  O requerente <strong>{dados.razao || "[RAZÃO SOCIAL]"}</strong>, portador do CNPJ <strong>{dados.cnpj || "[CNPJ]"}</strong>, 
-                  vem requerer a análise para fins de Licenciamento Ambiental para a atividade de transporte e logística, 
-                  conforme roteiro orientativo da SEMAS/PA[cite: 12, 13, 14].
-                </p>
-                <div className="mt-40 flex flex-col items-center">
-                  <div className="border-t border-black w-72 mb-2"></div>
-                  <p className="font-bold text-xs uppercase">{dados.razao || "Assinatura do Responsável"}</p>
-                </div>
-              </div>
-            )}
-            
-            {aba === 'print_proc' && (
-              <div className="bg-white p-16 text-sm leading-loose text-justify animate-in fade-in">
-                <h1 className="text-center font-bold text-2xl uppercase mb-16">Procuração Ambiental</h1>
-                <p><strong>OUTORGANTE:</strong> {dados.razao || "____________________"}, CNPJ nº {dados.cnpj || "____________________"}.</p>
-                <p><strong>OUTORGADO:</strong> {dados.tecnico || "____________________"}, Registro {dados.creasql || "____________________"}.</p>
-                <p className="mt-8">Pelo presente instrumento, o outorgante confere ao outorgado poderes para representar a empresa perante a SEMAS/PA e Secretarias Municipais do Pará, podendo assinar termos, protocolos e cumprir condicionantes[cite: 7, 20].</p>
-              </div>
-            )}
-          </div>
-
           {/* ABA DASHBOARD */}
           {aba === 'dashboard' && (
-            <div className="bg-white p-12 rounded-[3.5rem] shadow-sm border border-slate-100 space-y-10 animate-in fade-in">
-               <h2 className="text-2xl font-black text-slate-800 uppercase italic">Dados do Empreendimento</h2>
+            <div className="bg-white p-12 rounded-[3.5rem] shadow-sm border border-slate-100 space-y-12 animate-in fade-in">
+               <div className="flex items-center gap-4 border-b pb-8">
+                  <div className="bg-blue-50 p-4 rounded-3xl text-blue-600"><Building2 size={32}/></div>
+                  <div>
+                    <h2 className="text-3xl font-black text-slate-800 uppercase italic">Dossiê do Proponente</h2>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Controle Central de Informações do Licenciamento</p>
+                  </div>
+               </div>
                <div className="grid grid-cols-2 gap-8">
                   <InputGroup label="Razão Social" value={dados.razao} onChange={(v)=>setDados({...dados, razao: v})}/>
                   <InputGroup label="CNPJ" value={dados.cnpj} onChange={(v)=>setDados({...dados, cnpj: v})}/>
                   <InputGroup label="Endereço Completo" value={dados.endereco} onChange={(v)=>setDados({...dados, endereco: v})}/>
                   <InputGroup label="Técnico Responsável" value={dados.tecnico} onChange={(v)=>setDados({...dados, tecnico: v})}/>
-                  <InputGroup label="Registro (CREA/CFT)" value={dados.creasql} onChange={(v)=>setDados({...dados, creasql: v})}/>
-                  <InputGroup label="Município (SEMMA)" value={dados.cidade} onChange={(v)=>setDados({...dados, cidade: v})}/>
+                  <InputGroup label="Registro Profissional (CREA/CFT)" value={dados.creasql} onChange={(v)=>setDados({...dados, creasql: v})}/>
+                  <InputGroup label="Local do Licenciamento" value={dados.cidade} onChange={(v)=>setDados({...dados, cidade: v})}/>
                </div>
             </div>
           )}
+
+          {/* DOCUMENTOS PARA IMPRESSÃO INTEGRADOS */}
+          <div className="print:block">
+            {aba === 'print_oficio' && (
+              <div className="bg-white p-20 leading-relaxed text-slate-900 animate-in slide-in-from-bottom-10">
+                <h1 className="text-center font-bold text-2xl uppercase underline mb-24">Ofício de Requerimento de Licenciamento</h1>
+                <p className="text-right mb-16 font-bold">{dados.cidade}/PA, {new Date().toLocaleDateString('pt-BR')}</p>
+                <p className="mb-12 font-black">Excelentíssimo Secretário de Meio Ambiente,</p>
+                <p className="indent-12 text-justify mb-10 text-lg">
+                  O requerente <strong>{dados.razao || "[RAZÃO SOCIAL]"}</strong>, devidamente inscrito no CNPJ sob o nº <strong>{dados.cnpj || "[CNPJ]"}</strong>, 
+                  situado em {dados.endereco || "[ENDEREÇO]"}, vem respeitosamente requerer a concessão de 
+                  <strong> LICENÇA AMBIENTAL</strong> para suas atividades operacionais, conforme documentação técnica anexa e em conformidade 
+                  com a legislação vigente no Estado do Pará.
+                </p>
+                <p className="indent-12 text-justify mb-10 text-lg">Nestes termos, pede e aguarda deferimento.</p>
+                <div className="mt-52 flex flex-col items-center">
+                  <div className="border-t-2 border-slate-900 w-80 mb-3"></div>
+                  <p className="font-black text-sm uppercase">{dados.razao || "Assinatura do Representante Legal"}</p>
+                </div>
+              </div>
+            )}
+          </div>
 
         </div>
       </main>
@@ -187,20 +197,23 @@ export default function SilamMaximusV13() {
   );
 }
 
-// UI HELPERS
+// UI COMPONENT HELPERS
 function MenuBtn({ icon, label, active, onClick }) {
   return (
-    <button onClick={onClick} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all text-[11px] font-black uppercase ${
-      active ? 'bg-green-600 text-white shadow-lg shadow-green-900/40 translate-x-1' : 'text-slate-500 hover:bg-slate-800 hover:text-white'
-    }`}> {icon} {label} </button>
+    <button onClick={onClick} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-300 text-[11px] font-black uppercase tracking-tight ${
+      active ? 'bg-green-600 text-white shadow-xl shadow-green-900/40 translate-x-2' : 'text-slate-500 hover:bg-slate-800/50 hover:text-white'
+    }`}> {React.cloneElement(icon, { size: 18 })} {label} </button>
   );
 }
 
 function InputGroup({ label, value, onChange }) {
   return (
-    <div className="space-y-2">
-      <label className="text-[9px] font-black text-slate-400 uppercase ml-2 tracking-widest">{label}</label>
-      <input type="text" value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl focus:border-green-500 font-bold text-slate-700 outline-none transition-all shadow-inner focus:bg-white"/>
+    <div className="space-y-2 group">
+      <label className="text-[10px] font-black text-slate-400 uppercase ml-4 tracking-widest group-focus-within:text-green-500 transition-colors">{label}</label>
+      <input 
+        type="text" value={value} onChange={(e) => onChange(e.target.value)} 
+        className="w-full bg-slate-100 border-2 border-transparent p-5 rounded-[1.5rem] focus:border-green-500 font-bold text-slate-700 outline-none transition-all focus:bg-white shadow-inner"
+      />
     </div>
   );
 }
