@@ -21,8 +21,11 @@ export default function AplicativoMaximus() {
     const { data, error } = await supabase
       .from('auditoria_maximus')
       .select('*')
-      .order('codigo');
+      // Ajustado para 'codigo' sem acento para compatibilidade total
+      .order('codigo', { ascending: true });
+    
     if (data) setItens(data);
+    if (error) console.error("Erro Supabase:", error);
   }
 
   if (!autorizado) {
@@ -51,10 +54,16 @@ export default function AplicativoMaximus() {
     );
   }
 
-  const itensFiltrados = itens.filter(i => 
-    i.categoria === abaAtiva && 
-    (i['descricao de condicionante'] || '').toLowerCase().includes(filtro.toLowerCase())
-  );
+  // Filtro inteligente que ignora acentos na busca e na categoria
+  const itensFiltrados = itens.filter(i => {
+    const catBanco = (i.categoria || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+    const catAba = abaAtiva.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+    
+    // Tenta ler 'descricao de condicionante' ou 'descriçãodecondicionante' (o que o CSV gerar)
+    const descricao = (i['descricao de condicionante'] || i['descriçãodecondicionante'] || "").toLowerCase();
+    
+    return catBanco === catAba && descricao.includes(filtro.toLowerCase());
+  });
 
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1200px', margin: '0 auto' }}>
@@ -80,8 +89,7 @@ export default function AplicativoMaximus() {
               border: '2px solid #004a99', 
               borderRadius: '10px', 
               cursor: 'pointer',
-              fontWeight: 'bold',
-              transition: 'all 0.3s'
+              fontWeight: 'bold'
             }}
           >
             {aba}
@@ -105,7 +113,7 @@ export default function AplicativoMaximus() {
           <thead>
             <tr style={{ backgroundColor: '#004a99', color: 'white', textAlign: 'left' }}>
               <th style={{ padding: '15px', width: '80px' }}>ID</th>
-              <th style={{ padding: '15px' }}>DESCRICAO DA CONDICIONANTE</th>
+              <th style={{ padding: '15px' }}>DESCRIÇÃO DA CONDICIONANTE</th>
               <th style={{ padding: '15px', width: '150px' }}>STATUS</th>
             </tr>
           </thead>
@@ -114,23 +122,17 @@ export default function AplicativoMaximus() {
               <tr key={item.id} style={{ backgroundColor: index % 2 === 0 ? '#fff' : '#f9fbff', borderBottom: '1px solid #eee' }}>
                 <td style={{ padding: '15px', fontWeight: 'bold', color: '#004a99' }}>{item.codigo}</td>
                 <td style={{ padding: '15px', lineHeight: '1.5', fontSize: '14px', textAlign: 'justify' }}>
-                  {item['descricao de condicionante']}
+                  {item['descricao de condicionante'] || item['descriçãodecondicionante']}
                 </td>
                 <td style={{ padding: '15px' }}>
                   <span style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '5px',
-                    padding: '6px 12px',
-                    borderRadius: '20px',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
+                    display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold',
                     backgroundColor: item.status === 'CONFORME' ? '#e6f4ea' : '#fce8e6',
                     color: item.status === 'CONFORME' ? '#1e7e34' : '#d93025',
                     width: 'fit-content'
                   }}>
                     {item.status === 'CONFORME' ? <CheckCircle size={14} /> : <AlertCircle size={14} />} 
-                    {item.status}
+                    {item.status || 'PENDENTE'}
                   </span>
                 </td>
               </tr>
@@ -139,7 +141,7 @@ export default function AplicativoMaximus() {
         </table>
         {itensFiltrados.length === 0 && (
           <div style={{ padding: '50px', textAlign: 'center', color: '#999' }}>
-            Nenhum dado encontrado para esta categoria.
+            Nenhum dado encontrado. Verifique se a coluna 'categoria' no Supabase está preenchida corretamente.
           </div>
         )}
       </div>
