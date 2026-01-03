@@ -7,7 +7,7 @@ import {
 
 // --- CONFIGURAÇÃO SUPABASE ---
 const supabaseUrl = 'https://gmhxmtlidgcgpstxiiwg.supabase.co';
-const supabaseKey = 'SUA_CHAVE_AQUI'; // Substitua pela sua chave real
+const supabaseKey = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'; // Substitua pela sua chave real
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default function SilamMaximusV8() {
