@@ -19,7 +19,7 @@ export default function AplicativoMaximus() {
   }, [autorizado]);
 
   async function buscarDados() {
-    // Busca na tabela 'auditoria_maximus' e ordena pelo campo 'codigo'
+    // Busca na tabela 'auditoria_maximus' e ordena pelo campo 'código'
     const { data, error } = await supabase
       .from('auditoria_maximus')
       .select('*')
@@ -49,7 +49,7 @@ export default function AplicativoMaximus() {
           />
           <br />
           <button 
-            onClick={() => senhaInput === 'maximus2024' ? setAutorizado(true) : alert('Senha incorreta!')}
+            onClick={() => senhaInput === 'maximus2026' ? setAutorizado(true) : alert('Senha incorreta!')}
             style={{ padding: '12px 30px', backgroundColor: '#1a73e8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
           >
             Entrar no Sistema
