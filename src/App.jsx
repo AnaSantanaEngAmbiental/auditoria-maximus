@@ -23,7 +23,7 @@ export default function AplicativoMaximus() {
     const { data, error } = await supabase
       .from('auditoria_maximus')
       .select('*')
-      .order('codigo');
+      .order('código');
     
     if (data) {
       setItens(data);
@@ -106,10 +106,10 @@ export default function AplicativoMaximus() {
               .filter(i => i.categoria === abaAtiva)
               .map(item => (
                 <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
-                  {/* Ajustado para 'código' sem acento conforme sua tabela */}
+                  {/* Ajustado para 'código' com acento conforme sua tabela */}
                   <td style={{ padding: '12px', fontWeight: 'bold' }}>{item.código}</td>
                   
-                  {/* Ajustado para 'descrição' sem acento conforme sua tabela */}
+                  {/* Ajustado para 'descrição' com acento conforme sua tabela */}
                   <td style={{ padding: '12px' }}>{item.descrição}</td>
                   
                   <td style={{ 
