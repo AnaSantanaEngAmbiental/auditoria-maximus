@@ -1,112 +1,97 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { CheckCircle, AlertCircle, FileText, UploadCloud, Printer } from 'lucide-react';
+import { CheckCircle, AlertCircle, FileText, UploadCloud, Printer, Lock } from 'lucide-react';
 
-// --- CONFIGURAÇÃO DO SUPABASE ---
-const supabaseUrl = 'https://gmhxmtlidgcgpstxiiwg.supabase.co';
+// --- CONFIGURAÇÃO (COLOQUE SUAS CHAVES AQUI) ---
+const supabaseUrl = 'https://gmhxmtlidgcgpstxiiwg.supabase.co'; 
 const supabaseKey = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-export default function MaximusApp() {
+export default function AplicativoMaximus() {
   const [itens, setItens] = useState([]);
-  const [abaAtiva, setAbaAtiva] = useState('BASICO');
-  const [empresa, setEmpresa] = useState('NOME DA UNIDADE');
+  const [abaAtiva, setAbaAtiva] = useState('BÁSICO');
+  const [autorizado, setAutorizado] = useState(false);
+  const [senhaInput, setSenhaInput] = useState('');
 
+  // Busca os dados da tabela que você criou
   useEffect(() => {
-    fetchDados();
-  }, []);
+    if (autorizado) buscarDados();
+  }, [autorizado]);
 
-  async function fetchDados() {
-    const { data, error } = await supabase.from('auditoria_maximus').select('*').order('codigo');
+  async function buscarDados() {
+    const { data } = await supabase.from('auditório_máximo').select('*').order('código');
     if (data) setItens(data);
   }
 
-  const handleFileUpload = async (event) => {
-    const files = Array.from(event.target.files);
-    for (let file of files) {
-      const codigoArquivo = file.name.split('_')[0].toUpperCase();
-      const itemCorrespondente = itens.find(i => i.codigo === codigoArquivo);
+  // TELA DE LOGIN
+  if (!autorizado) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'sans-serif', backgroundColor: '#f0f2f5' }}>
+        <div style={{ padding: '30px', backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', textAlign: 'center' }}>
+          <Lock size={48} style={{ marginBottom: '10px', color: '#1a73e8' }} />
+          <h2>Acesso Restrito</h2>
+          <p>Sistema Auditoria Maximus</p>
+          <input 
+            type="password" 
+            placeholder="Digite a senha" 
+            value={senhaInput}
+            onChange={(e) => setSenhaInput(e.target.value)}
+            style={{ padding: '12px', width: '200px', borderRadius: '5px', border: '1px solid #ccc', marginBottom: '15px' }}
+          />
+          <br />
+          <button 
+            onClick={() => senhaInput === 'maximus2024' ? setAutorizado(true) : alert('Senha incorreta!')}
+            style={{ padding: '12px 30px', backgroundColor: '#1a73e8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+          >
+            Entrar no Sistema
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-      if (itemCorrespondente) {
-        await supabase
-          .from('auditoria_maximus')
-          .update({ status: 'CONFORME' })
-          .eq('codigo', codigoArquivo);
-      }
-    }
-    fetchDados();
-    alert("Análise Documental Concluída!");
-  };
-
+  // TELA PRINCIPAL (APÓS LOGIN)
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f8fafc', fontFamily: 'sans-serif' }}>
-      {/* MENU LATERAL */}
-      <aside style={{ width: '280px', backgroundColor: '#064e3b', color: 'white', padding: '30px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: '900', fontStyle: 'italic' }}>SiLAM-PA MAXIMUS</h1>
-        <p style={{ fontSize: '10px', opacity: 0.7, marginBottom: '40px' }}>SISTEMA DE AUDITORIA Ph.D.</p>
-        
-        {['BASICO', 'TECNICO', 'PROJETO', 'DIRETRIZ'].map(aba => (
+    <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #eee', marginBottom: '20px' }}>
+        <h1>MAXIMUS v15 - Auditoria</h1>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '8px', cursor: 'pointer' }}><Printer size={18}/> Imprimir</button>
+        </div>
+      </header>
+
+      <nav style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+        {['BÁSICO', 'MÁQUINAS', 'ELÉTRICA', 'SOCIAL'].map(aba => (
           <button 
             key={aba}
             onClick={() => setAbaAtiva(aba)}
-            style={{
-              width: '100%', padding: '15px', marginBottom: '10px', border: 'none', borderRadius: '10px',
-              backgroundColor: abaAtiva === aba ? '#059669' : 'transparent',
-              color: 'white', cursor: 'pointer', textAlign: 'left', fontWeight: 'bold'
-            }}
+            style={{ padding: '10px 20px', backgroundColor: abaAtiva === aba ? '#1a73e8' : '#e0e0e0', color: abaAtiva === aba ? 'white' : 'black', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
           >
             {aba}
           </button>
         ))}
+      </nav>
 
-        <button 
-          onClick={() => window.print()}
-          style={{ width: '100%', marginTop: '50px', padding: '15px', backgroundColor: 'white', color: '#064e3b', border: 'none', borderRadius: '10px', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}
-        >
-          <Printer size={18} /> GERAR RELATÓRIO
-        </button>
-      </aside>
-
-      {/* ÁREA PRINCIPAL */}
-      <main style={{ flex: 1, padding: '40px' }}>
-        <header style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px' }}>
-          <input 
-            value={empresa} 
-            onChange={(e) => setEmpresa(e.target.value)}
-            style={{ fontSize: '24px', fontWeight: 'bold', border: 'none', background: 'transparent' }}
-          />
-          <label style={{ backgroundColor: '#064e3b', color: 'white', padding: '12px 25px', borderRadius: '50px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <UploadCloud size={20} /> CARREGAR DOCUMENTOS
-            <input type="file" multiple onChange={handleFileUpload} style={{ display: 'none' }} />
-          </label>
-        </header>
-
-        <div style={{ backgroundColor: 'white', borderRadius: '20px', padding: '20px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #f1f5f9', textAlign: 'left' }}>
-                <th style={{ padding: '15px' }}>REF</th>
-                <th style={{ padding: '15px' }}>DESCRIÇÃO DA CONDICIONANTE</th>
-                <th style={{ padding: '15px' }}>STATUS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {itens.filter(i => i.categoria === abaAtiva).map(item => (
-                <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '15px', fontWeight: 'bold', color: '#64748b' }}>{item.codigo}</td>
-                  <td style={{ padding: '15px', fontSize: '14px', color: '#1e293b' }}>{item.descricao}</td>
-                  <td style={{ padding: '15px' }}>
-                    {item.status === 'CONFORME' ? 
-                      <span style={{ color: '#10b981', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}><CheckCircle size={16}/> OK</span> : 
-                      <span style={{ color: '#ef4444', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}><AlertCircle size={16}/> PENDENTE</span>
-                    }
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </main>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ backgroundColor: '#f8f9fa', textAlign: 'left' }}>
+            <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6' }}>CÓDIGO</th>
+            <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6' }}>DESCRIÇÃO</th>
+            <th style={{ padding: '12px', borderBottom: '2px solid #dee2e6' }}>STATUS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {itens.filter(i => i.tímpano === abaAtiva).map(item => (
+            <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
+              <td style={{ padding: '12px' }}>{item.código}</td>
+              <td style={{ padding: '12px' }}>{item.descrição}</td>
+              <td style={{ padding: '12px', color: item.status === 'CONFORME' ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>
+                {item.status === 'CONFORME' ? <CheckCircle size={16} /> : <AlertCircle size={16} />} {item.status}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
