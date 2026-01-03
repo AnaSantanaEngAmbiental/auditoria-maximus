@@ -1,24 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
-  UploadCloud, FileText, CheckCircle2, RefreshCw, 
-  Search, ShieldCheck, AlertCircle, FileStack, Eye 
+  UploadCloud, CheckCircle2, RefreshCw, 
+  Search, ShieldCheck, FileStack, Eye, XCircle, CheckCircle
 } from 'lucide-react';
 
 const SUPABASE_URL = 'https://gmhxmtlidgcgpstxiiwg.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'; 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-export default function MaximusV39() {
+export default function MaximusV40() {
   const [arquivos, setArquivos] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [statusFiltro, setStatusFiltro] = useState('Todos');
+  const [busca, setBusca] = useState('');
 
   useEffect(() => { carregarArquivos(); }, []);
 
   async function carregarArquivos() {
     const { data } = await supabase.from('arquivos_processo').select('*').order('created_at', { ascending: false });
     if (data) setArquivos(data);
+  }
+
+  // FUNÇÃO DE BUSCA: Filtra a lista enquanto você digita
+  const arquivosFiltrados = arquivos.filter(arq => 
+    arq.nome_arquivo.toLowerCase().includes(busca.toLowerCase())
+  );
+
+  // FUNÇÃO DE STATUS: Atualiza no banco se o documento está OK ou não
+  async function alterarStatus(id, novoStatus) {
+    const { error } = await supabase
+      .from('arquivos_processo')
+      .update({ status: novoStatus })
+      .eq('id', id);
+    
+    if (!error) carregarArquivos();
   }
 
   const handleUploadMutiplo = async (e) => {
@@ -29,17 +44,15 @@ export default function MaximusV39() {
     for (const file of files) {
       const nomeLimpo = file.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9.]/g, "_");
       const path = `dossie/${Date.now()}_${nomeLimpo}`;
-      
       const { error: storageError } = await supabase.storage.from('processos-ambientais').upload(path, file);
 
       if (!storageError || storageError.message.includes('already exists')) {
         const { data: urlData } = supabase.storage.from('processos-ambientais').getPublicUrl(path);
-        
         await supabase.from('arquivos_processo').insert([{ 
           empresa_cnpj: '38.404.019/0001-76', 
           nome_arquivo: nomeLimpo, 
           url_publica: urlData.publicUrl,
-          status: 'Em Análise' // Novo campo para auditoria
+          status: 'Pendente'
         }]);
       }
     }
@@ -48,102 +61,94 @@ export default function MaximusV39() {
   };
 
   return (
-    <div style={{ padding: '20px', backgroundColor: '#f8fafc', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ padding: '20px', backgroundColor: '#f1f5f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       
-      {/* Header Profissional */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', backgroundColor: '#0f172a', padding: '20px', borderRadius: '12px', color: 'white' }}>
+      {/* HEADER */}
+      <header style={{ backgroundColor: '#0f172a', color: 'white', padding: '20px', borderRadius: '12px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '24px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <ShieldCheck color="#10b981" /> MAXIMUS AUDITORIA
-          </h1>
-          <p style={{ margin: 0, opacity: 0.7, fontSize: '14px' }}>Gestão de Dossiês Ambientais - Caeli Transportes</p>
+          <h1 style={{ margin: 0, fontSize: '22px' }}>MAXIMUS v40 <span style={{ color: '#10b981', fontSize: '12px' }}>● LIVE</span></h1>
+          <p style={{ margin: 0, opacity: 0.6, fontSize: '13px' }}>Controle de Auditoria - Caeli Transportes</p>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <span style={{ backgroundColor: '#1e293b', padding: '8px 15px', borderRadius: '20px', fontSize: '12px' }}>
-            {loading ? "Processando..." : "Sistema Online"}
-          </span>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ position: 'relative' }}>
+            <Search size={16} style={{ position: 'absolute', left: '10px', top: '10px', color: '#94a3b8' }} />
+            <input 
+              type="text" 
+              placeholder="Buscar documento..." 
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              style={{ padding: '8px 10px 8px 35px', borderRadius: '8px', border: 'none', backgroundColor: '#1e293b', color: 'white', width: '250px' }}
+            />
+          </div>
+          <button onClick={carregarArquivos} style={{ background: '#1e293b', border: 'none', color: 'white', padding: '8px', borderRadius: '8px', cursor: 'pointer' }}>
+            <RefreshCw size={20} />
+          </button>
         </div>
       </header>
 
-      {/* Grid de Controle */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 3fr', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px' }}>
         
-        {/* Lado Esquerdo: Ações e Filtros */}
-        <aside>
-          <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-            <h3 style={{ marginTop: 0, fontSize: '16px' }}>Ações Rápidas</h3>
-            <input type="file" multiple onChange={handleUploadMutiplo} id="upload" hidden />
-            <label htmlFor="upload" style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#3b82f6', color: 'white', padding: '12px', borderRadius: '8px', cursor: 'pointer', textAlign: 'center', justifyContent: 'center', fontWeight: 'bold', marginBottom: '20px' }}>
-              <UploadCloud size={20} /> SUBIR DOCUMENTOS
+        {/* BARRA LATERAL */}
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px' }}>
+            <h3 style={{ marginTop: 0 }}>Upload</h3>
+            <input type="file" multiple onChange={handleUploadMutiplo} id="up" hidden />
+            <label htmlFor="up" style={{ backgroundColor: '#3b82f6', color: 'white', padding: '12px', borderRadius: '8px', display: 'block', textAlign: 'center', cursor: 'pointer', fontWeight: 'bold' }}>
+              {loading ? "SUBINDO..." : "NOVOS ARQUIVOS"}
             </label>
+          </div>
 
-            <hr style={{ border: '0', borderTop: '1px solid #f1f5f9', margin: '20px 0' }} />
-            
-            <h3 style={{ fontSize: '16px' }}>Resumo do Dossiê</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-                <span>Total de Arquivos:</span>
-                <strong>{arquivos.length}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#10b981' }}>
-                <span>Meta Mínima:</span>
-                <strong>13</strong>
-              </div>
+          <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px' }}>
+            <h3 style={{ marginTop: 0 }}>Progresso</h3>
+            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{arquivos.length} / 13</div>
+            <p style={{ fontSize: '12px', color: '#64748b' }}>Arquivos mínimos exigidos</p>
+            <div style={{ width: '100%', backgroundColor: '#e2e8f0', height: '10px', borderRadius: '5px', marginTop: '10px' }}>
+              <div style={{ width: `${(arquivos.length / 13) * 100}%`, backgroundColor: '#10b981', height: '10px', borderRadius: '5px', transition: '0.5s' }}></div>
             </div>
           </div>
         </aside>
 
-        {/* Lado Direito: Lista de Auditoria */}
-        <main style={{ backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-          <div style={{ padding: '20px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0 }}>Documentos em Auditoria</h3>
-            <button onClick={carregarArquivos} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
-              <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
-            </button>
-          </div>
-
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-            <thead style={{ backgroundColor: '#f8fafc', fontSize: '12px', color: '#64748b', textTransform: 'uppercase' }}>
+        {/* TABELA DE GESTÃO */}
+        <main style={{ backgroundColor: 'white', borderRadius: '12px', overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead style={{ backgroundColor: '#f8fafc', textAlign: 'left', fontSize: '13px' }}>
               <tr>
                 <th style={{ padding: '15px' }}>Documento</th>
-                <th style={{ padding: '15px' }}>Data de Upload</th>
                 <th style={{ padding: '15px' }}>Status</th>
-                <th style={{ padding: '15px' }}>Ações</th>
+                <th style={{ padding: '15px' }}>Decisão</th>
+                <th style={{ padding: '15px' }}>Acesso</th>
               </tr>
             </thead>
             <tbody>
-              {arquivos.map((arq) => (
-                <tr key={arq.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+              {arquivosFiltrados.map((arq) => (
+                <tr key={arq.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ padding: '15px', fontSize: '14px', fontWeight: '500' }}>{arq.nome_arquivo}</td>
                   <td style={{ padding: '15px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <FileStack size={18} color="#94a3b8" />
-                      <span style={{ fontSize: '14px', fontWeight: '500' }}>{arq.nome_arquivo}</span>
-                    </div>
-                  </td>
-                  <td style={{ padding: '15px', fontSize: '13px', color: '#64748b' }}>
-                    {new Date(arq.created_at).toLocaleDateString('pt-BR')}
-                  </td>
-                  <td style={{ padding: '15px' }}>
-                    <span style={{ backgroundColor: '#fef3c7', color: '#92400e', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>
-                      EM ANÁLISE
+                    <span style={{ 
+                      padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold',
+                      backgroundColor: arq.status === 'Aprovado' ? '#dcfce7' : arq.status === 'Recusado' ? '#fee2e2' : '#fef3c7',
+                      color: arq.status === 'Aprovado' ? '#166534' : arq.status === 'Recusado' ? '#991b1b' : '#92400e'
+                    }}>
+                      {arq.status || 'Pendente'}
                     </span>
                   </td>
+                  <td style={{ padding: '15px', display: 'flex', gap: '5px' }}>
+                    <button onClick={() => alterarStatus(arq.id, 'Aprovado')} style={{ padding: '5px', background: '#dcfce7', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#166534' }} title="Aprovar">
+                      <CheckCircle size={18} />
+                    </button>
+                    <button onClick={() => alterarStatus(arq.id, 'Recusado')} style={{ padding: '5px', background: '#fee2e2', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#991b1b' }} title="Recusar">
+                      <XCircle size={18} />
+                    </button>
+                  </td>
                   <td style={{ padding: '15px' }}>
-                    <a href={arq.url_publica} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#3b82f6', textDecoration: 'none', fontSize: '13px', fontWeight: 'bold' }}>
-                      <Eye size={16} /> VISUALIZAR
+                    <a href={arq.url_publica} target="_blank" rel="noreferrer" style={{ background: '#0f172a', color: 'white', padding: '6px 12px', borderRadius: '6px', textDecoration: 'none', fontSize: '12px' }}>
+                      <Eye size={14} style={{ marginRight: '5px', verticalAlign: 'middle' }} /> ABRIR
                     </a>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          
-          {arquivos.length === 0 && (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
-              <AlertCircle size={40} style={{ marginBottom: '10px' }} />
-              <p>Nenhum documento pendente de auditoria.</p>
-            </div>
-          )}
         </main>
       </div>
     </div>
