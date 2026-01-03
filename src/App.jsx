@@ -73,7 +73,7 @@ export default function AplicativoMaximus() {
       </header>
 
       <nav style={{ display: 'flex', gap: '10px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '5px' }}>
-        {['BÁSICO', 'TÉCNICA', 'PROJETO', 'DIRETRIZES'].map(aba => (
+        {['BÁSICA', 'TÉCNICA', 'PROJETO', 'DIRETRIZ'].map(aba => (
           <button 
             key={aba}
             onClick={() => setAbaAtiva(aba)}
