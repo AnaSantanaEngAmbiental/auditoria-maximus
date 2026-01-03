@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   UploadCloud, Search, CheckCircle, XCircle, FileBarChart, 
-  Printer, X, LayoutDashboard, AlertTriangle, FileCheck, Bot, Sparkles
+  Printer, X, LayoutDashboard, AlertTriangle, FileCheck, Bot, Sparkles, Trash2
 } from 'lucide-react';
 
 const SUPABASE_URL = 'https://gmhxmtlidgcgpstxiiwg.supabase.co';
@@ -18,7 +18,7 @@ const DOCUMENTOS_OBRIGATORIOS = [
   "2_dia_caeli_2025.pdf", "1_requerimento_padrao_semas_pa_2025.pdf", "0___oficio.pdf"
 ];
 
-export default function MaximusV47() {
+export default function MaximusV48() {
   const [arquivos, setArquivos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [busca, setBusca] = useState('');
@@ -31,7 +31,14 @@ export default function MaximusV47() {
     if (data) setArquivos(data);
   }
 
-  // AUTOMAÇÃO: Função que decide o status no momento do upload
+  // AUTOMATIZAÇÃO DE LIMPEZA (NOVO)
+  async function limparDossie() {
+    if(window.confirm("Deseja apagar todos os documentos e resetar o dossiê?")) {
+      const { error } = await supabase.from('arquivos_processo').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      if (!error) carregarArquivos();
+    }
+  }
+
   const handleUploadAutomatico = async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
@@ -39,8 +46,6 @@ export default function MaximusV47() {
 
     for (const file of files) {
       const nomeLimpo = file.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9.]/g, "_");
-      
-      // Regra de Automação: Se o nome estiver na lista oficial, aprova na hora!
       const statusAutomatico = DOCUMENTOS_OBRIGATORIOS.includes(nomeLimpo) ? 'Aprovado' : 'Pendente';
       
       const path = `dossie/${Date.now()}_${nomeLimpo}`;
@@ -69,100 +74,111 @@ export default function MaximusV47() {
   const documentosFaltantes = DOCUMENTOS_OBRIGATORIOS.filter(nome => !nomesPresentes.includes(nome));
 
   return (
-    <div style={{ display: 'flex', backgroundColor: '#f0f4f8', minHeight: '100vh', fontFamily: 'Arial, sans-serif', fontSize: '18px' }}>
+    <div style={{ display: 'flex', backgroundColor: '#f0f4f8', minHeight: '100vh', fontFamily: 'Arial, sans-serif' }}>
       
-      {/* SIDEBAR AMPLIADA */}
-      <nav style={{ width: '320px', backgroundColor: '#111827', color: 'white', padding: '40px 25px' }}>
-        <h1 style={{ color: '#10b981', fontSize: '36px', fontWeight: '900', marginBottom: '10px' }}>MAXIMUS</h1>
-        <div style={{ fontSize: '14px', color: '#6366f1', fontWeight: 'bold', marginBottom: '40px' }}>MODO AUTOMAÇÃO ATIVO <Bot size={14} style={{marginLeft: 5}}/></div>
+      {/* SIDEBAR - TEXTOS AMPLIADOS */}
+      <nav style={{ width: '350px', backgroundColor: '#0f172a', color: 'white', padding: '50px 30px', display: 'flex', flexDirection: 'column' }}>
+        <h1 style={{ color: '#10b981', fontSize: '42px', fontWeight: '900', marginBottom: '5px' }}>MAXIMUS</h1>
+        <p style={{ fontSize: '14px', color: '#6366f1', letterSpacing: '2px', marginBottom: '50px' }}>CONTROLE DE AUDITORIA V48</p>
         
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            <div style={{ padding: '20px', backgroundColor: '#1f2937', borderRadius: '15px', borderLeft: '5px solid #10b981' }}>
-                <h3 style={{ fontSize: '20px', margin: 0 }}>Dossiê Caeli</h3>
-                <p style={{ fontSize: '14px', opacity: 0.7 }}>Progresso: {arquivos.length}/13</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ padding: '25px', backgroundColor: '#1e293b', borderRadius: '20px', borderLeft: '8px solid #3b82f6' }}>
+                <span style={{ fontSize: '14px', opacity: 0.6, textTransform: 'uppercase' }}>Empresa Atual</span>
+                <h2 style={{ fontSize: '24px', margin: '5px 0' }}>CAELI TRANSP.</h2>
             </div>
             
-            <div style={{ marginTop: '20px', padding: '20px', backgroundColor: documentosFaltantes.length === 0 ? '#064e3b' : '#450a0a', borderRadius: '15px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '18px', fontWeight: 'bold' }}>
-                    <AlertTriangle size={24}/> {documentosFaltantes.length === 0 ? "CONCLUÍDO" : "PENDÊNCIAS"}
+            <div style={{ padding: '25px', backgroundColor: documentosFaltantes.length === 0 ? '#064e3b' : '#450a0a', borderRadius: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '22px', fontWeight: 'bold' }}>
+                    <AlertTriangle size={28}/> {documentosFaltantes.length === 0 ? "PRONTO" : "FALTANDO"}
                 </div>
-                <p style={{ fontSize: '16px', marginTop: '10px' }}>{documentosFaltantes.length} documentos faltam para o envio.</p>
+                <p style={{ fontSize: '18px', marginTop: '10px' }}>{documentosFaltantes.length} itens pendentes.</p>
             </div>
+
+            <button onClick={limparDossie} style={{ marginTop: 'auto', backgroundColor: '#dc2626', color: 'white', border: 'none', padding: '20px', borderRadius: '15px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontSize: '16px' }}>
+              <Trash2 size={20}/> RESETAR SISTEMA
+            </button>
         </div>
       </nav>
 
-      {/* PAINEL DE CONTROLE GIGANTE */}
-      <main style={{ flex: 1, padding: '50px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '50px' }}>
+      {/* PAINEL CENTRAL - FONTE MÁXIMA */}
+      <main style={{ flex: 1, padding: '60px' }}>
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '60px' }}>
           <div style={{ position: 'relative' }}>
-            <Search style={{ position: 'absolute', left: '20px', top: '22px', color: '#94a3b8' }} size={24}/>
+            <Search style={{ position: 'absolute', left: '25px', top: '22px', color: '#94a3b8' }} size={30}/>
             <input 
-              type="text" placeholder="Pesquisar documento..." value={busca} onChange={e => setBusca(e.target.value)}
-              style={{ padding: '20px 20px 20px 60px', borderRadius: '20px', border: '2px solid #cbd5e1', width: '450px', fontSize: '22px', outline: 'none' }}
+              type="text" placeholder="Localizar arquivo..." value={busca} onChange={e => setBusca(e.target.value)}
+              style={{ padding: '25px 25px 25px 75px', borderRadius: '25px', border: '3px solid #cbd5e1', width: '500px', fontSize: '26px', outline: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}
             />
           </div>
           
           <div style={{ display: 'flex', gap: '20px' }}>
-            <button onClick={() => setMostrarRelatorio(true)} style={{ backgroundColor: '#10b981', color: 'white', border: 'none', padding: '20px 40px', borderRadius: '20px', fontWeight: '900', cursor: 'pointer', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 10px 15px rgba(16,185,129,0.3)' }}>
-              <FileBarChart size={28}/> RELATÓRIO
+            <button onClick={() => setMostrarRelatorio(true)} style={{ backgroundColor: '#10b981', color: 'white', border: 'none', padding: '25px 45px', borderRadius: '25px', fontWeight: '900', cursor: 'pointer', fontSize: '24px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 10px 20px rgba(16,185,129,0.3)' }}>
+              <FileBarChart size={32}/> RELATÓRIO
             </button>
             <input type="file" multiple onChange={handleUploadAutomatico} id="autoup" hidden />
-            <label htmlFor="autoup" style={{ backgroundColor: '#4f46e5', color: 'white', padding: '20px 40px', borderRadius: '20px', fontWeight: '900', cursor: 'pointer', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <UploadCloud size={28}/> {loading ? "ROBÔ CARREGANDO..." : "SUBIR TUDO"}
+            <label htmlFor="autoup" style={{ backgroundColor: '#4f46e5', color: 'white', padding: '25px 45px', borderRadius: '25px', fontWeight: '900', cursor: 'pointer', fontSize: '24px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+              <UploadCloud size={32}/> {loading ? "PROCESSANDO..." : "CARREGAR"}
             </label>
           </div>
-        </div>
+        </header>
 
-        {/* ÁREA DE TRABALHO COM FONTE GRANDE */}
-        <div style={{ backgroundColor: 'white', borderRadius: '30px', padding: '30px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+        {/* TABELA DE GESTÃO - LETRAS GRANDES */}
+        <div style={{ backgroundColor: 'white', borderRadius: '40px', padding: '40px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.1)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '3px solid #f1f5f9', color: '#475569', fontSize: '20px' }}>
-                <th style={{ padding: '25px' }}>DOCUMENTO</th>
-                <th style={{ padding: '25px' }}>STATUS</th>
-                <th style={{ padding: '25px', textAlign: 'center' }}>AUDITORIA</th>
+              <tr style={{ textAlign: 'left', borderBottom: '4px solid #f1f5f9', color: '#475569', fontSize: '24px' }}>
+                <th style={{ padding: '30px' }}>DOCUMENTO</th>
+                <th style={{ padding: '30px' }}>STATUS</th>
+                <th style={{ padding: '30px', textAlign: 'center' }}>AUDITORIA</th>
               </tr>
             </thead>
             <tbody>
-              {arquivos.filter(a => a.nome_arquivo.includes(busca)).map(arq => (
-                <tr key={arq.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: '20px' }}>
-                  <td style={{ padding: '25px', fontWeight: '700', color: '#1e293b' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        {DOCUMENTOS_OBRIGATORIOS.includes(arq.nome_arquivo) && <Sparkles size={18} color="#f59e0b" />}
+              {arquivos.filter(a => a.nome_arquivo.toLowerCase().includes(busca.toLowerCase())).map(arq => (
+                <tr key={arq.id} style={{ borderBottom: '2px solid #f8fafc', fontSize: '24px' }}>
+                  <td style={{ padding: '30px', fontWeight: '700', color: '#1e293b' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        {arq.status === 'Aprovado' ? <Sparkles size={24} color="#f59e0b" /> : <FileCheck size={24} color="#cbd5e1"/>}
                         {arq.nome_arquivo}
                     </div>
                   </td>
-                  <td style={{ padding: '25px' }}>
-                    <span style={{ padding: '8px 15px', borderRadius: '10px', fontSize: '16px', fontWeight: '900', backgroundColor: arq.status === 'Aprovado' ? '#dcfce7' : '#fef3c7', color: arq.status === 'Aprovado' ? '#166534' : '#92400e', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                      {arq.status === 'Aprovado' && <Bot size={14}/>} {arq.status?.toUpperCase()}
+                  <td style={{ padding: '30px' }}>
+                    <span style={{ padding: '10px 20px', borderRadius: '15px', fontSize: '18px', fontWeight: '900', backgroundColor: arq.status === 'Aprovado' ? '#dcfce7' : '#fef3c7', color: arq.status === 'Aprovado' ? '#166534' : '#92400e', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                      {arq.status === 'Aprovado' && <Bot size={20}/>} {arq.status?.toUpperCase()}
                     </span>
                   </td>
-                  <td style={{ padding: '25px' }}>
-                    <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
-                      <button onClick={() => julgar(arq.id, 'Aprovado')} style={{ padding: '12px', borderRadius: '12px', border: '2px solid #bbf7d0', color: '#16a34a', cursor: 'pointer', backgroundColor: '#f0fdf4' }}><CheckCircle size={28}/></button>
-                      <button onClick={() => julgar(arq.id, 'Recusado')} style={{ padding: '12px', borderRadius: '12px', border: '2px solid #fecaca', color: '#dc2626', cursor: 'pointer', backgroundColor: '#fef2f2' }}><XCircle size={28}/></button>
+                  <td style={{ padding: '30px' }}>
+                    <div style={{ display: 'flex', gap: '20px', justifyContent: 'center' }}>
+                      <button onClick={() => julgar(arq.id, 'Aprovado')} style={{ padding: '15px', borderRadius: '18px', border: '3px solid #bbf7d0', color: '#16a34a', cursor: 'pointer', backgroundColor: '#f0fdf4' }} title="Aprovar Manulamente"><CheckCircle size={32}/></button>
+                      <button onClick={() => julgar(arq.id, 'Recusado')} style={{ padding: '15px', borderRadius: '18px', border: '3px solid #fecaca', color: '#dc2626', cursor: 'pointer', backgroundColor: '#fef2f2' }} title="Recusar Documento"><XCircle size={32}/></button>
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {arquivos.length === 0 && <div style={{textAlign: 'center', padding: '100px', fontSize: '28px', color: '#94a3b8'}}>Nenhum arquivo no dossiê. Aguardando upload...</div>}
         </div>
       </main>
 
-      {/* RELATÓRIO FINAL AMPLIADO */}
+      {/* RELATÓRIO FINAL - VISIBILIDADE DE IMPRESSÃO */}
       {mostrarRelatorio && (
-        <div onClick={() => setMostrarRelatorio(false)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div onClick={e => e.stopPropagation()} style={{ backgroundColor: 'white', width: '900px', padding: '60px', borderRadius: '40px', position: 'relative', boxShadow: '0 50px 100px -20px rgba(0,0,0,0.5)' }}>
-            <button onClick={() => setMostrarRelatorio(false)} style={{ position: 'absolute', right: '40px', top: '40px', border: 'none', background: '#f1f5f9', padding: '15px', borderRadius: '50%', cursor: 'pointer' }}><X size={32}/></button>
-            <h2 style={{ fontSize: '42px', fontWeight: '900', marginBottom: '10px', color: '#0f172a' }}>Relatório de Auditoria</h2>
-            <p style={{ fontSize: '22px', color: '#64748b' }}>Empresa: Cardoso & Rates (CAELI)</p>
-            <div style={{ margin: '40px 0', padding: '30px', backgroundColor: '#f8fafc', borderRadius: '20px', fontSize: '24px' }}>
-                <p><strong>Total de Documentos:</strong> {arquivos.length}</p>
-                <p><strong>Aprovação por Robô:</strong> {arquivos.filter(a => a.status === 'Aprovado').length}</p>
+        <div onClick={() => setMostrarRelatorio(false)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, backdropFilter: 'blur(8px)' }}>
+          <div onClick={e => e.stopPropagation()} style={{ backgroundColor: 'white', width: '1000px', padding: '70px', borderRadius: '50px', position: 'relative' }}>
+            <button onClick={() => setMostrarRelatorio(false)} style={{ position: 'absolute', right: '40px', top: '40px', border: 'none', background: '#f1f5f9', padding: '20px', borderRadius: '50%', cursor: 'pointer' }}><X size={40}/></button>
+            <h2 style={{ fontSize: '50px', fontWeight: '900', color: '#0f172a' }}>Dossiê de Conformidade</h2>
+            <p style={{ fontSize: '26px', color: '#64748b', marginBottom: '40px' }}>Unidade: Marabá/PA — Caeli Transportes</p>
+            
+            <div style={{ maxHeight: '450px', overflowY: 'auto', border: '2px solid #f1f5f9', padding: '30px', borderRadius: '25px' }}>
+                {arquivos.map(a => (
+                    <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '20px 0', borderBottom: '1px solid #f1f5f9', fontSize: '22px' }}>
+                        <span style={{fontWeight: '500'}}>{a.nome_arquivo}</span>
+                        <strong style={{ color: a.status === 'Aprovado' ? '#16a34a' : '#dc2626' }}>{a.status?.toUpperCase()}</strong>
+                    </div>
+                ))}
             </div>
-            <button onClick={() => window.print()} style={{ width: '100%', padding: '25px', backgroundColor: '#0f172a', color: 'white', borderRadius: '20px', fontWeight: '900', fontSize: '24px', cursor: 'pointer', display: 'flex', justifyContent: 'center', gap: '15px' }}>
-                <Printer size={32}/> IMPRIMIR PARA SEMAS
+            
+            <button onClick={() => window.print()} style={{ marginTop: '50px', width: '100%', padding: '30px', backgroundColor: '#0f172a', color: 'white', borderRadius: '25px', fontWeight: '900', fontSize: '28px', cursor: 'pointer', display: 'flex', justifyContent: 'center', gap: '20px' }}>
+                <Printer size={38}/> IMPRIMIR PDF FINAL
             </button>
           </div>
         </div>
