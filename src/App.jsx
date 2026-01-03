@@ -1,152 +1,91 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { ShieldCheck, UploadCloud, FileText, Building2, Eye, Trash2, AlertCircle, Wifi, WifiOff } from 'lucide-react';
+import { ShieldCheck, UploadCloud, FileText, Eye, Trash2, CheckCircle } from 'lucide-react';
 
-// --- CONFIGURAÇÃO ---
+// --- CONEXÃO ---
 const SUPABASE_URL = 'https://gmhxmtlidgcgpstxiiwg.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'; 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-export default function MaximusV23() {
-  const [aba, setAba] = useState('upload');
-  const [status, setStatus] = useState({ tipo: 'info', msg: 'Iniciando sistema...' });
+export default function MaximusV26() {
   const [arquivos, setArquivos] = useState([]);
   const [loading, setLoading] = useState(false);
+  const CNPJ_ALVO = '38.404.019/0001-76'; // CAELI TRANSPORTES
 
-  const cnpjFoco = '38.404.019/0001-76'; // Caeli Transportes
-
-  useEffect(() => {
-    testarConexao();
-    carregarArquivos();
-  }, []);
-
-  async function testarConexao() {
-    const { error } = await supabase.from('arquivos_processo').select('id').limit(1);
-    if (error) {
-      setStatus({ tipo: 'erro', msg: `Erro de Conexão: ${error.message}` });
-    } else {
-      setStatus({ tipo: 'sucesso', msg: 'Conectado ao Banco Maximus com Sucesso!' });
-    }
-  }
+  useEffect(() => { carregarArquivos(); }, []);
 
   async function carregarArquivos() {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('arquivos_processo')
       .select('*')
-      .eq('empresa_cnpj', cnpjFoco)
+      .eq('empresa_cnpj', CNPJ_ALVO)
       .order('created_at', { ascending: false });
-    
-    if (error) setStatus({ tipo: 'erro', msg: error.message });
-    else setArquivos(data || []);
+    if (data) setArquivos(data);
   }
 
-  const handleUpload = async (files) => {
+  const handleUpload = async (e) => {
     setLoading(true);
-    setStatus({ tipo: 'info', msg: 'Subindo arquivos para o servidor...' });
-
-    for (const file of Array.from(files)) {
-      const path = `${cnpjFoco}/${Date.now()}_${file.name}`;
-      
+    for (const file of Array.from(e.target.files)) {
+      const path = `${CNPJ_ALVO}/${Date.now()}_${file.name}`;
       const { error: storageError } = await supabase.storage
         .from('processos-ambientais').upload(path, file);
 
       if (!storageError) {
         const { data: urlData } = supabase.storage.from('processos-ambientais').getPublicUrl(path);
         await supabase.from('arquivos_processo').insert([{
-          empresa_cnpj: cnpjFoco,
+          empresa_cnpj: CNPJ_ALVO,
           nome_arquivo: file.name,
-          url_publica: urlData.publicUrl,
-          categoria: 'DOCUMENTO'
+          url_publica: urlData.publicUrl
         }]);
       }
     }
-    await carregarArquivos();
+    carregarArquivos();
     setLoading(false);
-    setStatus({ tipo: 'sucesso', msg: 'Arquivos sincronizados no dossiê!' });
   };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f0f2f5', fontFamily: 'system-ui' }}>
+    <div style={{ padding: '40px', backgroundColor: '#f0f2f5', minHeight: '100vh', fontFamily: 'Arial' }}>
       
-      {/* SIDEBAR FIXA */}
-      <nav style={{ width: '350px', backgroundColor: '#020617', color: 'white', padding: '40px', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '40px' }}>
-          <ShieldCheck color="#22c55e" size={40} />
-          <h2 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0 }}>MAXIMUS <span style={{color:'#4ade80'}}>V23</span></h2>
+      {/* CABEÇALHO GRANDE */}
+      <div style={{ backgroundColor: '#020617', padding: '40px', borderRadius: '25px', color: 'white', marginBottom: '30px', display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <ShieldCheck size={60} color="#22c55e" />
+        <div>
+          <h1 style={{ fontSize: '32px', margin: 0 }}>MAXIMUS v26 - CAELI</h1>
+          <p style={{ color: '#4ade80', fontSize: '20px', fontWeight: 'bold' }}>PLACAS: TVO9D07 e TVO9D17</p>
         </div>
+      </div>
 
-        <div style={{ flex: 1 }}>
-          <p style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '20px' }}>Navegação</p>
-          <button onClick={() => setAba('upload')} style={aba === 'upload' ? btnAtivo : btnInativo}> <FileText size={20}/> Dossiê de Documentos </button>
-        </div>
+      {/* BOX DE UPLOAD */}
+      <div style={{ backgroundColor: 'white', padding: '60px', borderRadius: '30px', textAlign: 'center', border: '4px dashed #cbd5e1', marginBottom: '40px' }}>
+        <input type="file" multiple onChange={handleUpload} id="fileInput" hidden />
+        <label htmlFor="fileInput" style={{ cursor: 'pointer' }}>
+          <UploadCloud size={80} color="#22c55e" style={{ margin: '0 auto 20px' }} />
+          <h2 style={{ fontSize: '26px' }}>Arraste os documentos aqui</h2>
+          <div style={{ background: '#020617', color: 'white', padding: '20px 40px', borderRadius: '15px', fontSize: '20px', fontWeight: 'bold', display: 'inline-block', marginTop: '20px' }}>
+            {loading ? "SUBINDO..." : "SELECIONAR ARQUIVOS"}
+          </div>
+        </label>
+      </div>
 
-        <div style={{ background: '#1e293b', padding: '20px', borderRadius: '15px' }}>
-          <p style={{ fontSize: '10px', color: '#94a3b8', margin: '0 0 5px 0' }}>CNPJ CAELI</p>
-          <p style={{ color: '#4ade80', fontSize: '18px', fontWeight: 'bold', margin: 0 }}>{cnpjFoco}</p>
-        </div>
-      </nav>
-
-      {/* ÁREA DE CONTEÚDO */}
-      <main style={{ flex: 1, padding: '40px', overflowY: 'auto' }}>
+      {/* LISTA DE DOCUMENTOS - UM A UM COM LETRA GRANDE */}
+      <div style={{ backgroundColor: 'white', padding: '40px', borderRadius: '30px' }}>
+        <h3 style={{ fontSize: '24px', marginBottom: '30px', color: '#0f172a' }}>DOCUMENTOS NO SISTEMA ({arquivos.length})</h3>
         
-        {/* BARRA DE STATUS DINÂMICA */}
-        <div style={{ 
-          backgroundColor: status.tipo === 'erro' ? '#fee2e2' : status.tipo === 'sucesso' ? '#dcfce7' : '#e0f2fe',
-          padding: '20px', borderRadius: '15px', marginBottom: '30px', display: 'flex', alignItems: 'center', gap: '15px',
-          border: `2px solid ${status.tipo === 'erro' ? '#ef4444' : '#22c55e'}`
-        }}>
-          {status.tipo === 'erro' ? <AlertTriangle color="#ef4444"/> : <CheckCircle color="#22c55e"/>}
-          <span style={{ fontWeight: 'bold', fontSize: '16px', color: '#1e293b' }}>{status.msg}</span>
-        </div>
-
-        <div style={{ maxWidth: '1000px' }}>
-          {/* UPLOAD BOX */}
-          <div 
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => { e.preventDefault(); handleUpload(e.dataTransfer.files); }}
-            style={{ backgroundColor: 'white', padding: '60px', borderRadius: '30px', textAlign: 'center', border: '3px dashed #cbd5e1' }}
-          >
-            <UploadCloud size={60} color="#22c55e" style={{ marginBottom: '20px' }} />
-            <h1 style={{ fontSize: '30px', fontWeight: '900', margin: '0 0 10px 0' }}>Gestão de Dossiê</h1>
-            <p style={{ fontSize: '18px', color: '#64748b', marginBottom: '30px' }}>Arraste os PDFs das carretas TVO9D07 e TVO9D17</p>
-            
-            <input type="file" multiple id="f" hidden onChange={(e) => handleUpload(e.target.files)} />
-            <label htmlFor="f" style={{ background: '#020617', color: 'white', padding: '15px 40px', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold' }}>
-              {loading ? "SINCRONIZANDO..." : "CARREGAR DOCUMENTOS"}
-            </label>
-          </div>
-
-          {/* LISTA DE DOCUMENTOS - ESTILO UM A UM */}
-          <div style={{ marginTop: '50px' }}>
-            <h3 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '20px', color: '#020617' }}>Documentos Identificados no Banco:</h3>
-            
-            {arquivos.length === 0 && !loading && (
-              <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Nenhum documento encontrado. Faça o upload acima.</div>
-            )}
-
-            <div style={{ display: 'grid', gap: '15px' }}>
-              {arquivos.map((arq) => (
-                <div key={arq.id} style={{ backgroundColor: 'white', padding: '25px', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                    <div style={{ background: '#f1f5f9', padding: '12px', borderRadius: '12px' }}><FileText color="#3b82f6"/></div>
-                    <span style={{ fontSize: '18px', fontWeight: '700', color: '#1e293b' }}>{arq.nome_arquivo}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '15px' }}>
-                    <a href={arq.url_publica} target="_blank" rel="noreferrer" style={{ background: '#020617', color: 'white', padding: '10px 20px', borderRadius: '10px', textDecoration: 'none', fontSize: '14px', fontWeight: 'bold' }}>VER PDF</a>
-                    <button onClick={async () => { if(confirm("Excluir?")) { await supabase.from('arquivos_processo').delete().eq('id', arq.id); carregarArquivos(); } }} style={{ background: '#fee2e2', color: '#ef4444', border: 'none', padding: '10px', borderRadius: '10px', cursor: 'pointer' }}><Trash2 size={20}/></button>
-                  </div>
-                </div>
-              ))}
+        <div style={{ display: 'grid', gap: '15px' }}>
+          {arquivos.map((arq) => (
+            <div key={arq.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '25px', backgroundColor: '#f8fafc', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                <FileText size={40} color="#3b82f6" />
+                <span style={{ fontSize: '22px', fontWeight: 'bold' }}>{arq.nome_arquivo}</span>
+              </div>
+              <div style={{ display: 'flex', gap: '15px' }}>
+                <a href={arq.url_publica} target="_blank" rel="noreferrer" style={{ background: '#22c55e', color: 'white', padding: '15px 30px', borderRadius: '10px', textDecoration: 'none', fontWeight: 'bold' }}>ABRIR PDF</a>
+                <button onClick={async () => { if(confirm("Remover?")) { await supabase.from('arquivos_processo').delete().eq('id', arq.id); carregarArquivos(); } }} style={{ background: '#fee2e2', color: '#ef4444', border: 'none', padding: '15px', borderRadius: '10px', cursor: 'pointer' }}><Trash2/></button>
+              </div>
             </div>
-          </div>
+          ))}
         </div>
-      </main>
+      </div>
     </div>
   );
 }
-
-// ESTILOS
-const btnAtivo = { display: 'flex', alignItems: 'center', gap: '15px', width: '100%', padding: '18px', borderRadius: '12px', border: 'none', backgroundColor: '#22c55e', color: 'white', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px' };
-const btnInativo = { display: 'flex', alignItems: 'center', gap: '15px', width: '100%', padding: '18px', borderRadius: '12px', border: 'none', backgroundColor: 'transparent', color: '#94a3b8', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px' };
-function CheckCircle(props) { return <ShieldCheck {...props} /> }
-function AlertTriangle(props) { return <AlertCircle {...props} /> }
