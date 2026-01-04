@@ -1,189 +1,175 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SiLAM-PA Maximus v5.1 | Auditoria Ph.D. Caeli</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-    <style>
-        /* CSS ORIGINAL PRESERVADO V5.0 */
-        .phd-gradient { background: linear-gradient(135deg, #064e3b 0%, #065f46 50%, #14532d 100%); }
-        .page { display: none; }
-        .page.active { display: block; animation: fadeIn 0.4s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .sidebar-item.active { background: #14532d; color: white; border-right: 4px solid #4ade80; }
-        .status-badge { padding: 4px 10px; border-radius: 8px; font-size: 10px; font-weight: 900; text-transform: uppercase; }
-        .atende { background: #dcfce7; color: #166534; border: 1px solid #166534; }
-        .pendente { background: #fee2e2; color: #991b1b; border: 1px solid #991b1b; }
-        .alerta { background: #fef3c7; color: #92400e; border: 1px solid #92400e; }
-        .critico { background: #450a0a; color: #ffffff; border: 1px solid #ff0000; }
-        
-        @media print { .no-print { display: none !important; } .page { display: block !important; } }
-    </style>
-</head>
-<body class="bg-slate-50 text-slate-900 font-sans min-h-screen flex flex-col">
+import React, { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import { 
+  ShieldCheck, LayoutGrid, Truck, FileCheck, Cpu, Terminal, 
+  UploadCloud, Trash2, CheckCircle, AlertTriangle, Printer 
+} from 'lucide-react';
 
-    <nav class="phd-gradient text-white sticky top-0 z-50 shadow-2xl px-6 h-16 flex justify-between items-center no-print">
-        <div class="flex items-center space-x-3">
-            <div class="bg-white p-1.5 rounded-lg text-green-900 shadow-inner"><i data-lucide="shield-check" class="w-6 h-6"></i></div>
-            <div>
-                <h1 class="text-sm font-black tracking-tighter uppercase leading-none text-green-400">SiLAM-PA MAXIMUS v5.1</h1>
-                <p class="text-[9px] font-bold opacity-70 uppercase tracking-widest text-white">Gestão Ph.D. Caeli Transportes</p>
-            </div>
-        </div>
-        <div class="flex items-center space-x-4">
-            <button onclick="gerarRelatorio()" class="bg-blue-600 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-blue-700 transition">Gerar Relatório</button>
-            <button onclick="window.print()" class="bg-white text-green-900 px-5 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg hover:scale-105 transition">Exportar Dossiê</button>
-        </div>
-    </nav>
+// Configuração mantida conforme seu código original
+const SUPABASE_URL = 'https://gmhxmtlidgcgpstxiiwg.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'; 
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    <div class="flex flex-1 overflow-hidden">
-        <aside class="w-64 bg-white border-r shadow-xl flex flex-col z-40 no-print">
-            <div class="p-6 space-y-2">
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Módulos</p>
-                <button onclick="showP('upload')" class="sidebar-item active w-full flex items-center p-3 text-[11px] font-black rounded-xl transition" data-id="upload"><i data-lucide="layout-grid" class="w-4 h-4 mr-3 text-green-600"></i> CENTRAL DE DADOS</button>
-                <button onclick="showP('frota')" class="sidebar-item w-full flex items-center p-3 text-[11px] font-black rounded-xl transition" data-id="frota"><i data-lucide="truck" class="w-4 h-4 mr-3 text-blue-600"></i> AUDITORIA DE FROTA (14)</button>
-                <div class="h-px bg-slate-100 my-4"></div>
-                <button onclick="showP('basica')" class="sidebar-item w-full flex items-center p-3 text-[11px] font-bold rounded-xl transition" data-id="basica"><i data-lucide="file-check" class="w-4 h-4 mr-3"></i> 1. DOC. BÁSICA</button>
-                <button onclick="showP('tecnica')" class="sidebar-item w-full flex items-center p-3 text-[11px] font-bold rounded-xl transition" data-id="tecnica"><i data-lucide="cpu" class="w-4 h-4 mr-3"></i> 2. DOC. TÉCNICA</button>
-            </div>
+const DB_BASICA = ["Requerimento Padrão SEMMA", "Ficha Cadastral", "DIA", "CNPJ", "Inscrição Estadual", "Contrato Social", "RG/CPF Proprietário", "Comprovante Endereço", "Alvará Prefeitura", "Bombeiros", "Uso do Solo", "Polícia Civil", "Contrato Aluguel", "Procuração", "Planta/ART", "Vigilância Sanitária", "Alvará Construção", "CND Municipal", "CTAM", "Outorga SEMAS", "CAR", "Publicação DO"];
+const DB_TECNICA = ["Análise Água", "Efluentes", "BTEX/PAH", "ART Veterinário", "CIV/CIPP", "MOPP", "Frota ANTT"];
+
+export default function MaximusV61() {
+  const [abaAtiva, setAbaAtiva] = useState('upload');
+  const [arquivos, setArquivos] = useState([]);
+  const [frota, setFrota] = useState([]); // Agora vem do banco!
+  const [loading, setLoading] = useState(false);
+  const [logs, setLogs] = useState([`> [${new Date().toLocaleTimeString()}] SISTEMA MAXIMUS V6.1 ONLINE.`]);
+
+  useEffect(() => { carregarDados(); }, []);
+
+  async function carregarDados() {
+    // Busca arquivos (evidências)
+    const { data: docs } = await supabase.from('arquivos_processo').select('*').order('created_at', { ascending: false });
+    if (docs) setArquivos(docs);
+
+    // Busca frota cadastrada (Genérico para qualquer cliente)
+    const { data: veiculos } = await supabase.from('frota_veiculos').select('*');
+    if (veiculos) setFrota(veiculos);
+  }
+
+  const addLog = (msg) => setLogs(prev => [`> [${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 10)]);
+
+  const handleUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    setLoading(true);
+    for (const file of files) {
+      const nomeLimpo = file.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9.]/g, "_");
+      addLog(`PROCESSANDO: ${nomeLimpo}...`);
+      
+      const path = `dossie/${Date.now()}_${nomeLimpo}`;
+      const { error } = await supabase.storage.from('processos-ambientais').upload(path, file);
+
+      if (!error) {
+        const { data: url } = supabase.storage.from('processos-ambientais').getPublicUrl(path);
+        await supabase.from('arquivos_processo').insert([{ 
+          nome_arquivo: nomeLimpo, url_publica: url.publicUrl, status: 'Aprovado', empresa_cnpj: '38.404.019/0001-76'
+        }]);
+        addLog(`SUCESSO: ${nomeLimpo} VINCULADO.`);
+      }
+    }
+    carregarDados();
+    setLoading(false);
+  };
+
+  // Lógica Genérica de Auditoria de Frota
+  const RenderFrota = () => {
+    const hoje = new Date();
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+        <table className="w-full text-left text-[11px]">
+          <thead className="bg-slate-900 text-white font-black uppercase">
+            <tr>
+              <th className="p-4">Veículo/Placa</th>
+              <th className="p-4">CIV/CIPP</th>
+              <th className="p-4">MOPP</th>
+              <th className="p-4">ANTT</th>
+              <th className="p-4">Evidência PDF</th>
+              <th className="p-4 text-center">Situação</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {frota.length === 0 ? (
+              <tr><td colSpan="6" className="p-10 text-center font-bold text-slate-400">NENHUM VEÍCULO CADASTRADO PARA ESTE EMPREENDIMENTO.</td></tr>
+            ) : frota.map((v, i) => {
+              const temPDF = arquivos.some(a => a.nome_arquivo.includes(v.placa.toLowerCase()));
+              const vMopp = new Date(v.validade_mopp);
+              const estaVencido = vMopp < hoje || v.status_antt !== 'ATIVO';
+
+              return (
+                <tr key={i} className="hover:bg-slate-50 transition">
+                  <td className="p-4 font-black text-blue-900">{v.placa}<br/><span className="text-[9px] text-slate-400">{v.motorista}</span></td>
+                  <td className="p-4 font-bold">{v.validade_civ}</td>
+                  <td className="p-4 font-bold">{v.validade_mopp}</td>
+                  <td className="p-4 font-bold">{v.status_antt}</td>
+                  <td className="p-4 font-black">{temPDF ? '✅ VINCULADO' : '❌ PENDENTE'}</td>
+                  <td className="p-4 text-center">
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-black ${estaVencido ? 'bg-red-600 text-white' : 'bg-green-500 text-white'}`}>
+                      {estaVencido ? 'BLOQUEADO' : 'LIBERADO'}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  const RenderTabela = (lista, prefixo) => (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <table className="w-full text-left text-[12px]">
+        <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-black uppercase">
+          <tr>
+            <th className="p-4 w-20">REF</th>
+            <th className="p-4">DESCRIÇÃO DA CONDICIONANTE</th>
+            <th className="p-4">STATUS</th>
+            <th className="p-4">EVIDÊNCIA</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {lista.map((item, i) => {
+            const match = arquivos.find(a => a.nome_arquivo.includes(item.toLowerCase().split(' ')[0]));
+            return (
+              <tr key={i} className="hover:bg-green-50/50 transition">
+                <td className="p-4 font-bold text-slate-400">{prefixo}{i+1}</td>
+                <td className="p-4 font-black text-slate-800 uppercase">{item}</td>
+                <td className="p-4">
+                  <span className={`px-2 py-1 rounded text-[10px] font-black ${match ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    {match ? 'CONFORME' : 'PENDENTE'}
+                  </span>
+                </td>
+                <td className="p-4 text-blue-600 font-bold">{match ? match.nome_arquivo : '--'}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col min-h-screen bg-slate-50 text-slate-900">
+      <header className="bg-gradient-to-r from-[#064e3b] to-[#14532d] text-white px-6 h-16 flex justify-between items-center shadow-lg">
+        <div className="flex items-center space-x-3">
+          <ShieldCheck className="text-green-400" />
+          <h1 className="text-sm font-black uppercase tracking-tighter">SiLAM-PA MAXIMUS v6.1</h1>
+        </div>
+        <button onClick={() => window.print()} className="bg-white text-green-900 px-4 py-2 rounded-xl text-[10px] font-black uppercase">Imprimir Dossiê</button>
+      </header>
+
+      <div className="flex flex-1">
+        <aside className="w-64 bg-white border-r p-6 space-y-2">
+          <button onClick={() => setAbaAtiva('upload')} className={`w-full flex p-3 rounded-xl text-[11px] font-black ${abaAtiva === 'upload' ? 'bg-green-900 text-white' : ''}`}><LayoutGrid className="mr-2 w-4 h-4"/> CENTRAL DE DADOS</button>
+          <button onClick={() => setAbaAtiva('frota')} className={`w-full flex p-3 rounded-xl text-[11px] font-black ${abaAtiva === 'frota' ? 'bg-green-900 text-white' : ''}`}><Truck className="mr-2 w-4 h-4"/> AUDITORIA DE FROTA ({frota.length})</button>
+          <button onClick={() => setAbaAtiva('basica')} className={`w-full flex p-3 rounded-xl text-[11px] font-black ${abaAtiva === 'basica' ? 'bg-green-900 text-white' : ''}`}><FileCheck className="mr-2 w-4 h-4"/> DOC. BÁSICA</button>
+          <button onClick={() => setAbaAtiva('tecnica')} className={`w-full flex p-3 rounded-xl text-[11px] font-black ${abaAtiva === 'tecnica' ? 'bg-green-900 text-white' : ''}`}><Cpu className="mr-2 w-4 h-4"/> DOC. TÉCNICA</button>
         </aside>
 
-        <main class="flex-1 overflow-y-auto p-8 bg-[#f9fafb]">
-            
-            <div id="upload" class="page active space-y-8">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div class="bg-white p-10 rounded-[2.5rem] shadow-sm border-2 border-dashed border-slate-200 hover:border-green-500 transition cursor-pointer group" onclick="document.getElementById('fileIn').click()">
-                        <input type="file" id="fileIn" multiple class="hidden" onchange="processarArquivos(this.files)">
-                        <div class="flex flex-col items-center">
-                            <div class="bg-green-50 p-6 rounded-3xl text-green-600 mb-6 group-hover:scale-110 transition"><i data-lucide="file-up" class="w-12 h-12"></i></div>
-                            <h3 class="font-black uppercase text-sm">Arraste as Evidências</h3>
-                            <p class="text-[10px] text-slate-400 font-bold mt-2">O SISTEMA VINCULARÁ AUTOMATICAMENTE PELA PLACA</p>
-                        </div>
-                    </div>
-                    <div class="bg-slate-900 p-6 rounded-3xl shadow-2xl">
-                         <h4 class="text-green-400 text-[10px] font-black uppercase mb-4 flex items-center"><i data-lucide="terminal" class="w-3 h-3 mr-2"></i> Console Maximus v5.1</h4>
-                         <div id="logConsole" class="font-mono text-[9px] text-green-500 h-40 overflow-y-auto space-y-1">
-                            > AGUARDANDO DOCUMENTOS PARA ANÁLISE...
-                         </div>
-                    </div>
-                </div>
+        <main className="flex-1 p-8">
+          {abaAtiva === 'upload' && (
+            <div className="grid grid-cols-2 gap-6">
+               <label className="bg-white p-10 rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center cursor-pointer">
+                  <UploadCloud size={40} className="text-green-600"/>
+                  <span className="mt-4 font-black uppercase text-xs">Arraste os Documentos</span>
+                  <input type="file" multiple hidden onChange={handleUpload} />
+               </label>
+               <div className="bg-slate-900 p-6 rounded-3xl h-48 overflow-y-auto font-mono text-[10px] text-green-500">
+                  {logs.map((log, i) => <div key={i}>{log}</div>)}
+               </div>
             </div>
+          )}
 
-            <div id="frota" class="page space-y-6">
-                <div class="bg-white p-8 rounded-3xl shadow-sm border">
-                    <h2 class="font-black uppercase text-xl border-l-8 border-blue-600 pl-4 mb-8">Auditoria Técnica de Frota (14 Unidades)</h2>
-                    <table class="w-full text-left">
-                        <thead class="bg-slate-50 border-b">
-                            <tr class="text-[10px] font-black uppercase text-slate-400">
-                                <th class="p-4">Veículo/Placa</th>
-                                <th class="p-4">Validade CIV</th>
-                                <th class="p-4">Validade CIPP</th>
-                                <th class="p-4">Status ANTT</th>
-                                <th class="p-4">Evidência PDF</th>
-                                <th class="p-4 text-center">Situação</th>
-                            </tr>
-                        </thead>
-                        <tbody id="frotaBody" class="divide-y"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div id="basica" class="page bg-white rounded-3xl shadow-sm overflow-hidden"><table class="w-full" id="tabBasica"></table></div>
-            <div id="tecnica" class="page bg-white rounded-3xl shadow-sm overflow-hidden"><table class="w-full" id="tabTecnica"></table></div>
-
+          {abaAtiva === 'frota' && RenderFrota()}
+          {abaAtiva === 'basica' && RenderTabela(DB_BASICA, "B")}
+          {abaAtiva === 'tecnica' && RenderTabela(DB_TECNICA, "T")}
         </main>
+      </div>
     </div>
-
-    <script>
-        let arquivosSubidos = [];
-        const hoje = new Date(); // Data base 2026 conforme sistema
-
-        // FONTE DA VERDADE: OS 14 VEÍCULOS CAELI
-        const frotaTotal = [
-            {placa: "JWD4A12", mot: "Carlos A.", mopp: "2026-12-30", civ: "2026-06-15", cipp: "2026-06-15", antt: "ATIVO"},
-            {placa: "OTZ9088", mot: "Ricardo S.", mopp: "2025-01-20", civ: "2025-02-10", cipp: "2025-02-10", antt: "INATIVO"},
-            {placa: "QDA2211", mot: "Marcos P.", mopp: "2025-05-15", civ: "2026-01-05", cipp: "2026-01-05", antt: "ATIVO"},
-            {placa: "NSW8877", mot: "João F.", mopp: "2025-01-10", civ: "2025-01-02", cipp: "2025-01-02", antt: "BLOQUEADO"},
-            {placa: "OBU4433", mot: "Luis O.", mopp: "2027-10-10", civ: "2027-10-10", cipp: "2027-10-10", antt: "ATIVO"},
-            {placa: "RXX0099", mot: "Pedro A.", mopp: "2026-02-20", civ: "2026-02-20", cipp: "2026-02-20", antt: "ATIVO"},
-            {placa: "QVR1234", mot: "Samuel R.", mopp: "2024-12-01", civ: "2026-01-01", cipp: "2026-01-01", antt: "ATIVO"},
-            {placa: "JUD7766", mot: "Tiago M.", mopp: "2025-11-11", civ: "2025-11-11", cipp: "2025-11-11", antt: "ATIVO"},
-            {placa: "OTY5544", mot: "Bruno D.", mopp: "2026-01-05", civ: "2025-12-20", cipp: "2025-12-20", antt: "ATIVO"},
-            {placa: "PZS3322", mot: "Fabio J.", mopp: "2025-08-30", civ: "2025-08-30", cipp: "2025-08-30", antt: "ATIVO"},
-            {placa: "MXT1199", mot: "Diego C.", mopp: "2026-04-14", civ: "2026-04-14", cipp: "2026-04-14", antt: "ATIVO"},
-            {placa: "KLS8800", mot: "Hugo L.", mopp: "2024-05-01", civ: "2026-01-01", cipp: "2026-01-01", antt: "INATIVO"},
-            {placa: "PPA0011", mot: "Renato A.", mopp: "2026-12-22", civ: "2026-12-22", cipp: "2026-12-22", antt: "ATIVO"},
-            {placa: "LOO2233", mot: "Arthur S.", mopp: "2027-09-09", civ: "2027-09-09", cipp: "2027-09-09", antt: "ATIVO"}
-        ];
-
-        function init() {
-            lucide.createIcons();
-            renderFrota();
-        }
-
-        function showP(id) {
-            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            document.querySelectorAll('.sidebar-item').forEach(b => b.classList.remove('active'));
-            document.getElementById(id).classList.add('active');
-            const btn = document.querySelector(`[data-id="${id}"]`);
-            if(btn) btn.classList.add('active');
-        }
-
-        // Lógica de Notificação e Risco
-        function getStatusData(dataStr) {
-            const dataVenc = new Date(dataStr);
-            const diff = Math.ceil((dataVenc - hoje) / (1000 * 60 * 60 * 24));
-            if (diff < 0) return { label: "VENCIDO", cls: "critico" };
-            if (diff <= 30) return { label: "RENOVAR", cls: "alerta" };
-            return { label: "OK", cls: "atende" };
-        }
-
-        function processarArquivos(files) {
-            for(let f of files) {
-                const nome = f.name.toUpperCase();
-                arquivosSubidos.push(nome);
-                const l = document.createElement('p');
-                l.textContent = `> DETECTADO: ${nome} - PROCESSANDO VINCULAÇÃO...`;
-                document.getElementById('logConsole').prepend(l);
-            }
-            renderFrota();
-        }
-
-        function renderFrota() {
-            const body = document.getElementById('frotaBody');
-            body.innerHTML = frotaTotal.map(v => {
-                const sCiv = getStatusData(v.civ);
-                const sCipp = getStatusData(v.cipp);
-                const temPDF = arquivosSubidos.some(arq => arq.includes(v.placa));
-                
-                let situacaoFinal = "OPERACIONAL";
-                let situacaoCls = "atende";
-
-                if (sCiv.label === "VENCIDO" || sCipp.label === "VENCIDO" || v.antt !== "ATIVO") {
-                    situacaoFinal = "BLOQUEADO";
-                    situacaoCls = "critico";
-                } else if (sCiv.label === "RENOVAR" || sCipp.label === "RENOVAR") {
-                    situacaoFinal = "ATENÇÃO";
-                    situacaoCls = "alerta";
-                }
-
-                return `
-                    <tr class="hover:bg-slate-50 transition">
-                        <td class="p-4 font-black text-blue-900">${v.placa}<br><span class="text-[9px] text-slate-400">${v.mot}</span></td>
-                        <td class="p-4"><span class="status-badge ${sCiv.cls}">${v.civ}</span></td>
-                        <td class="p-4"><span class="status-badge ${sCipp.cls}">${v.cipp}</span></td>
-                        <td class="p-4"><span class="status-badge ${v.antt === 'ATIVO' ? 'atende' : 'pendente'}">${v.antt}</span></td>
-                        <td class="p-4 font-bold text-[10px]">${temPDF ? '✅ VINCULADO' : '❌ PENDENTE'}</td>
-                        <td class="p-4 text-center"><span class="status-badge ${situacaoCls}">${situacaoFinal}</span></td>
-                    </tr>
-                `;
-            }).join('');
-            lucide.createIcons();
-        }
-
-        window.onload = init;
-    </script>
-</body>
-</html>
+  );
+}
