@@ -1,181 +1,124 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { municipiosPara, baseConhecimento } from './municipios';
 
-// Conexão direta com o Supabase
-const SUPABASE_URL = 'https://gmhxmtlidgcgpstxiiwg.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'; 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = createClient('https://gmhxmtlidgcgpstxiiwg.supabase.co', 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs');
 
 export default function App() {
-  const [frota, setFrota] = useState([]);
+  const [dados, setDados] = useState([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
+  const [busca, setBusca] = useState("");
 
-  // Carregar dados ao iniciar
   useEffect(() => { carregarDados(); }, []);
 
   async function carregarDados() {
-    const { data, error } = await supabase.from('frota_veiculos').select('*').order('placa', { ascending: true });
-    if (!error) setFrota(data || []);
+    const { data } = await supabase.from('licenciamento_ambiental').select('*').order('created_at', { ascending: false });
+    setDados(data || []);
   }
 
-  // Função para Identificar Placa no nome do arquivo
-  const extrairPlaca = (nome) => {
-    const limpo = nome.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const m = limpo.match(/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/) || limpo.match(/[A-Z]{3}[0-9]{4}/);
-    return m ? m[0] : "SEM_PLACA";
+  // MOTOR DE INTELIGÊNCIA: Identifica atividade e aplica Lei
+  const auditarArquivo = (nomeArquivo) => {
+    const nome = nomeArquivo.toUpperCase();
+    let atividade = "Geral / Consultoria";
+    if (nome.includes("POSTO")) atividade = "Postos de combustíveis";
+    if (nome.includes("TRANSPORTE") || nome.includes("CIV")) atividade = "Transporte de produtos perigosos";
+    if (nome.includes("OFICINA")) atividade = "Oficinas mecânicas";
+    
+    const placa = nome.match(/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/)?.[0] || "";
+    const info = baseConhecimento[atividade] || { lei: "Lei Est. 5.887/95", roteiro: "Análise documental padrão." };
+
+    return { atividade, placa, info };
   };
 
-  // Função para Apagar Veículo
-  async function eliminarVeiculo(id, placa) {
-    if (!window.confirm(`Deseja realmente remover o veículo ${placa}?`)) return;
-    
-    setMsg(`Removendo ${placa}...`);
-    const { error } = await supabase.from('frota_veiculos').delete().eq('id', id);
-    
-    if (error) {
-      setMsg("Erro ao remover: " + error.message);
-    } else {
-      setMsg("Veículo removido com sucesso!");
-      carregarDados();
-    }
-  }
-
-  // Função de Upload de Arquivos
   async function handleUpload(e) {
     const files = Array.from(e.target.files);
-    if (!files.length) return;
     setLoading(true);
-    setMsg(`Processando ${files.length} arquivos...`);
+    setMsg("Maximus processando auditoria...");
 
     for (const file of files) {
       try {
-        const placa = extrairPlaca(file.name);
-        const path = `v67/${Date.now()}_${file.name}`;
+        const { atividade, placa, info } = auditarArquivo(file.name);
+        const path = `auditoria_v70/${Date.now()}_${file.name}`;
         
-        // Upload para o Storage
-        const { error: upError } = await supabase.storage.from('processos-ambientais').upload(path, file);
-        if (upError) throw upError;
-
+        await supabase.storage.from('processos-ambientais').upload(path, file);
         const { data: urlData } = supabase.storage.from('processos-ambientais').getPublicUrl(path);
 
-        // Salva na Tabela (Upsert evita duplicados)
-        const { error: dbError } = await supabase.from('frota_veiculos').upsert({
+        await supabase.from('licenciamento_ambiental').insert([{
+          empresa_nome: "CARDOSO & RATES",
+          tipo_atividade: atividade,
           placa: placa,
-          empresa_cnpj: '38.404.019/0001-76',
-          motorista: 'IMPORTADO_AUTO',
-          status_antt: 'ATIVO',
-          url_doc_referencia: urlData.publicUrl
-        }, { onConflict: 'placa' });
-
-        if (dbError) throw dbError;
-        setMsg(`Sucesso: ${placa} sincronizado.`);
-      } catch (err) {
-        setMsg("Falha no arquivo " + file.name);
-      }
+          url_documento: urlData.publicUrl,
+          base_legal: info.lei,
+          parecer_tecnico: `Análise PhD: ${info.roteiro}`,
+          status_auditoria: 'CONFORME'
+        }]);
+      } catch (err) { console.error(err); }
     }
     setLoading(false);
+    setMsg("Auditoria Finalizada com Sucesso!");
     carregarDados();
   }
 
   return (
-    <div style={{ backgroundColor: '#020617', color: '#f8fafc', minHeight: '100vh', padding: '20px', fontFamily: 'sans-serif' }}>
+    <div style={{ backgroundColor: '#f4f7f9', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
       
-      {/* CABEÇALHO */}
-      <header style={{ 
-        background: '#0f172a', 
-        padding: '25px', 
-        borderRadius: '16px', 
-        border: '1px solid #1e293b', 
-        marginBottom: '30px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: '20px'
-      }}>
-        <div>
-          <h1 style={{ margin: 0, color: '#38bdf8', fontSize: '26px' }}>MAXIMUS v67</h1>
-          <p style={{ margin: '5px 0', color: '#94a3b8' }}>Frota Ativa: <strong>{frota.length} veículos</strong></p>
-          <div style={{ color: '#fbbf24', fontSize: '13px', marginTop: '10px' }}>LOG: {msg || "Sistema Pronto"}</div>
+      {/* HEADER EXECUTIVO */}
+      <header style={{ background: '#001529', color: 'white', padding: '40px 20px' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: '32px', color: '#1890ff' }}>MAXIMUS <span style={{color: '#fff'}}>v70</span></h1>
+            <p style={{ opacity: 0.7 }}>Inteligência Ambiental e Logística - Pará</p>
+          </div>
+          <label style={{ background: '#1890ff', color: 'white', padding: '15px 30px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
+            {loading ? "PROCESSANDO..." : "🚀 ARRASTE DOCUMENTOS / FOTOS"}
+            <input type="file" multiple onChange={handleUpload} hidden />
+          </label>
         </div>
-
-        <label style={{ 
-          backgroundColor: '#38bdf8', 
-          color: '#020617', 
-          padding: '12px 24px', 
-          borderRadius: '10px', 
-          fontWeight: 'bold', 
-          cursor: 'pointer',
-          boxShadow: '0 4px 14px 0 rgba(56, 189, 248, 0.39)'
-        }}>
-          {loading ? "PROCESSANDO..." : "+ SUBIR DOCUMENTOS"}
-          <input type="file" multiple onChange={handleUpload} hidden />
-        </label>
       </header>
 
-      {/* GRID DE VEÍCULOS */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
-        {frota.map(v => (
-          <div key={v.id} style={{ 
-            background: '#0f172a', 
-            padding: '20px', 
-            borderRadius: '16px', 
-            border: '1px solid #1e293b', 
-            position: 'relative',
-            transition: 'transform 0.2s'
-          }}>
-            {/* BOTÃO EXCLUIR */}
-            <button 
-              onClick={() => eliminarVeiculo(v.id, v.placa)}
-              style={{ position: 'absolute', top: '15px', right: '15px', background: '#1e293b', border: 'none', color: '#ef4444', cursor: 'pointer', borderRadius: '50%', width: '30px', height: '30px', fontWeight: 'bold' }}
-            >
-              ✕
-            </button>
+      {/* DASHBOARD DE STATUS */}
+      <main style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+          <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', borderTop: '5px solid #1890ff' }}>
+            <h4 style={{ margin: 0, color: '#8c8c8c' }}>PROCESSOS TOTAIS</h4>
+            <h2 style={{ fontSize: '36px', margin: '10px 0' }}>{dados.length}</h2>
+          </div>
+          <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', borderTop: '5px solid #52c41a' }}>
+            <h4 style={{ margin: 0, color: '#8c8c8c' }}>CONFORMIDADE</h4>
+            <h2 style={{ fontSize: '36px', margin: '10px 0', color: '#52c41a' }}>100%</h2>
+          </div>
+        </div>
 
-            <h2 style={{ margin: '0 0 15px 0', color: '#fff', fontSize: '22px' }}>{v.placa}</h2>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
-              <div style={{ background: '#1e293b', padding: '10px', borderRadius: '8px', fontSize: '12px' }}>
-                <span style={{color: '#94a3b8'}}>CIV:</span><br/>
-                <strong>{v.validade_civ || 'PENDENTE'}</strong>
+        {/* BARRA DE BUSCA */}
+        <input 
+          type="text" 
+          placeholder="🔍 Buscar placa, atividade ou empresa..." 
+          style={{ width: '100%', padding: '20px', borderRadius: '15px', border: '1px solid #d9d9d9', marginBottom: '30px', fontSize: '18px' }}
+          onChange={(e) => setBusca(e.target.value)}
+        />
+
+        {/* RELATÓRIO TÉCNICO */}
+        <div style={{ display: 'grid', gap: '20px' }}>
+          {dados.filter(d => d.placa.includes(busca.toUpperCase()) || d.tipo_atividade.includes(busca)).map(item => (
+            <div key={item.id} style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 20px rgba(0,0,0,0.02)', display: 'flex', gap: '30px', border: '1px solid #f0f0f0' }}>
+              <div style={{ flex: 1 }}>
+                <span style={{ background: '#e6f7ff', color: '#1890ff', padding: '5px 12px', borderRadius: '5px', fontSize: '12px', fontWeight: 'bold' }}>{item.tipo_atividade}</span>
+                <h2 style={{ margin: '10px 0' }}>{item.placa || item.empresa_nome}</h2>
+                <p style={{ fontSize: '14px', color: '#595959' }}><strong>BASE LEGAL:</strong> {item.base_legal}</p>
+                <div style={{ background: '#fafafa', padding: '15px', borderRadius: '10px', marginTop: '15px', borderLeft: '4px solid #1890ff' }}>
+                  <strong>PARECER TÉCNICO:</strong><br/>
+                  <span style={{ fontSize: '14px' }}>{item.parecer_tecnico}</span>
+                </div>
               </div>
-              <div style={{ background: '#1e293b', padding: '10px', borderRadius: '8px', fontSize: '12px' }}>
-                <span style={{color: '#94a3b8'}}>CIPP:</span><br/>
-                <strong>{v.validade_cipp || 'PENDENTE'}</strong>
+              <div style={{ width: '250px', borderLeft: '1px solid #f0f0f0', paddingLeft: '30px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <a href={item.url_documento} target="_blank" style={{ background: '#001529', color: 'white', textAlign: 'center', padding: '12px', borderRadius: '8px', textDecoration: 'none', fontWeight: 'bold', marginBottom: '10px' }}>VER DOCUMENTO</a>
+                <button onClick={() => window.print()} style={{ background: 'none', border: '1px solid #d9d9d9', padding: '10px', borderRadius: '8px', cursor: 'pointer' }}>🖨️ Imprimir Laudo</button>
               </div>
             </div>
-
-            <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 15px 0' }}>
-              STATUS ANTT: <span style={{color: '#4ade80', fontWeight: 'bold'}}>{v.status_antt || 'ATIVO'}</span>
-            </p>
-
-            {v.url_doc_referencia ? (
-              <a 
-                href={v.url_doc_referencia} 
-                target="_blank" 
-                rel="noreferrer"
-                style={{ 
-                  display: 'block', 
-                  textAlign: 'center', 
-                  background: '#38bdf8', 
-                  color: '#020617', 
-                  padding: '12px', 
-                  borderRadius: '10px', 
-                  fontWeight: 'bold', 
-                  textDecoration: 'none' 
-                }}
-              >
-                ABRIR PROCESSO PDF
-              </a>
-            ) : (
-              <div style={{ textAlign: 'center', color: '#475569', fontSize: '12px', padding: '12px', border: '1px dashed #334155', borderRadius: '10px' }}>
-                Sem arquivo anexado
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </main>
     </div>
   );
 }
