@@ -2,18 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   CheckCircle, FileText, AlertTriangle, Trash2, 
-  Download, Search, Truck, Eye, ShieldCheck, RefreshCw
+  Download, Eye, ShieldCheck, RefreshCw, Search
 } from 'lucide-react';
 
 const SUPABASE_URL = 'https://gmhxmtlidgcgpstxiiwg.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'; 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-export default function MaximusV27() {
+export default function MaximusV28() {
   const [arquivos, setArquivos] = useState([]);
   const [frota, setFrota] = useState([]);
   const [abaAtiva, setAbaAtiva] = useState('frota');
   const [loading, setLoading] = useState(false);
+  const [debugLog, setDebugLog] = useState([]);
 
   useEffect(() => { carregarDados(); }, []);
 
@@ -24,135 +25,165 @@ export default function MaximusV27() {
     setFrota(veiculos || []);
   }
 
-  const extrairPlacaUniversal = (nome) => {
-    // Limpa o nome: remove espaços, hífens, pontos e vira tudo maiúsculo
-    const n = nome.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const superScanner = (nomeArquivo) => {
+    // 1. Limpeza radical: remove extensões e símbolos
+    const nomeLimpo = nomeArquivo.split('.')[0].toUpperCase().replace(/[^A-Z0-9]/g, '');
     
-    // Procura Mercosul (ABC1D23) ou Antiga (ABC1234)
-    const match = n.match(/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/) || n.match(/[A-Z]{3}[0-9]{4}/);
-    const placa = match ? match[0] : null;
+    // 2. Busca qualquer sequência de 7 caracteres (Padrão de Placa Brasil)
+    // Isso pega ABC1234, ABC1A23, e variações
+    const regexPlaca = /[A-Z]{3}[0-9][A-Z0-9][0-9]{2}|[A-Z]{3}[0-9]{4}/;
+    const match = nomeLimpo.match(regexPlaca);
+    const placaAchada = match ? match[0] : null;
 
-    const isCiv = n.includes("CIV") || n.includes("CRLV") || n.includes("31");
-    const isCipp = n.includes("CIPP") || n.includes("CTPP") || n.includes("52");
-    
-    return { placa, isCiv, isCipp };
+    // 3. Identifica tipo de documento
+    const isCiv = nomeLimpo.includes("CIV") || nomeLimpo.includes("CRLV") || nomeLimpo.includes("31");
+    const isCipp = nomeLimpo.includes("CIPP") || nomeLimpo.includes("CTPP") || nomeLimpo.includes("52");
+
+    return { placa: placaAchada, isCiv, isCipp, lido: nomeLimpo };
   };
 
   const handleUpload = async (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
     setLoading(true);
+    let logs = [];
 
     for (const file of files) {
-      const info = extrairPlacaUniversal(file.name);
-      if (!info.placa) continue;
-
-      const path = `v27/${Date.now()}_${file.name}`;
-      await supabase.storage.from('processos-ambientais').upload(path, file);
-      const { data: url } = supabase.storage.from('processos-ambientais').getPublicUrl(path);
+      const info = superScanner(file.name);
       
+      if (!info.placa) {
+        logs.push(`❌ FALHA: Não achei placa em "${file.name}" (Lido: ${info.lido})`);
+        continue;
+      }
+
+      // Upload Storage
+      const path = `v28/${Date.now()}_${file.name}`;
+      await supabase.storage.from('processos-ambientais').upload(path, file);
+      const { data: urlRes } = supabase.storage.from('processos-ambientais').getPublicUrl(path);
+      
+      // Salva Registro do Arquivo
       await supabase.from('arquivos_processo').insert([{ 
         nome_arquivo: file.name, 
-        url_publica: url.publicUrl,
+        url_publica: urlRes.publicUrl,
         placa_relacionada: info.placa
       }]);
 
-      const { data: ex } = await supabase.from('frota_veiculos').select('*').eq('placa', info.placa).maybeSingle();
-      const dados = {
+      // Upsert na Frota (Unificação)
+      const { data: existe } = await supabase.from('frota_veiculos').select('*').eq('placa', info.placa).maybeSingle();
+      
+      const payload = {
         placa: info.placa,
-        motorista: "AUDITADO",
-        validade_civ: info.isCiv ? "31/12/2026" : (ex?.validade_civ || "PENDENTE"),
-        validade_cipp: info.isCipp ? "31/12/2026" : (ex?.validade_cipp || "PENDENTE"),
-        url_doc_referencia: url.publicUrl
+        motorista: "CAMINHÃO AUDITADO",
+        validade_civ: info.isCiv ? "31/12/2026" : (existe?.validade_civ || "PENDENTE"),
+        validade_cipp: info.isCipp ? "31/12/2026" : (existe?.validade_cipp || "PENDENTE"),
+        url_doc_referencia: urlRes.publicUrl
       };
 
-      if (ex) { await supabase.from('frota_veiculos').update(dados).eq('id', ex.id); } 
-      else { await supabase.from('frota_veiculos').insert([dados]); }
+      if (existe) {
+        await supabase.from('frota_veiculos').update(payload).eq('id', existe.id);
+      } else {
+        await supabase.from('frota_veiculos').insert([payload]);
+      }
+      logs.push(`✅ SUCESSO: Placa ${info.placa} extraída de "${file.name}"`);
     }
+
+    setDebugLog(logs);
     await carregarDados();
     setLoading(false);
   };
 
-  const resetarSistema = async () => {
-    if (!confirm("Isso apagará todos os dados da tela. Confirmar?")) return;
+  const resetTotal = async () => {
+    if(!confirm("Apagar tudo?")) return;
     setLoading(true);
-    const { data: f } = await supabase.from('frota_veiculos').select('id');
-    if (f) for (const r of f) await supabase.from('frota_veiculos').delete().eq('id', r.id);
+    await supabase.from('frota_veiculos').delete().neq('placa', '0');
     await carregarDados();
     setLoading(false);
-    alert("Sistema Resetado!");
+    setDebugLog(["BANCO RESETADO"]);
   };
 
   return (
-    <div style={{ padding: '20px', backgroundColor: '#f1f5f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
+    <div style={{ padding: '30px', backgroundColor: '#f0f2f5', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       
-      {/* CABEÇALHO COM BOTÕES EXPOSTOS */}
-      <div style={{ background: '#0f172a', color: 'white', padding: '20px', borderRadius: '15px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+      {/* HEADER PRINCIPAL */}
+      <div style={{ background: '#1a202c', color: 'white', padding: '25px', borderRadius: '20px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
         <div>
-            <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}><ShieldCheck color="#10b981"/> MAXIMUS v27</h2>
-            <p style={{ margin: 0, fontSize: '12px', opacity: 0.7 }}>Auditoria de Placas Mercosul e Antigas</p>
+          <h1 style={{ margin: 0, fontSize: '24px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <ShieldCheck color="#48bb78" /> MAXIMUS v28
+          </h1>
+          <p style={{ margin: 0, opacity: 0.6, fontSize: '13px' }}>Scanner de Placas Mercosul e Antigas</p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={resetarSistema} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <Trash2 size={16}/> RESETAR
-            </button>
-            
-            <label style={{ background: '#4f46e5', color: 'white', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                {loading ? <RefreshCw className="spin" size={16}/> : <Download size={16}/>}
-                {loading ? "CARREGANDO..." : "CARREGAR DOCUMENTOS"}
-                <input type="file" multiple onChange={handleUpload} hidden />
-            </label>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button onClick={resetTotal} style={{ background: '#f56565', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>RESETAR</button>
+          
+          <label style={{ background: '#4c51bf', color: 'white', padding: '12px 25px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {loading ? <RefreshCw className="animate-spin" size={18} /> : <Download size={18} />}
+            {loading ? "PROCESSANDO..." : "CARREGAR ARQUIVOS"}
+            <input type="file" multiple onChange={handleUpload} hidden />
+          </label>
         </div>
       </div>
 
-      {/* TABS */}
+      {/* PAINEL DE DEBUG (IMPORTANTE) */}
+      {debugLog.length > 0 && (
+        <div style={{ background: '#2d3748', color: '#a0aec0', padding: '15px', borderRadius: '12px', marginBottom: '20px', fontSize: '12px', fontFamily: 'monospace' }}>
+          <strong>LOG DE CAPTURA:</strong>
+          {debugLog.map((log, i) => <div key={i} style={{ marginTop: '5px', color: log.includes('✅') ? '#68d391' : '#fc8181' }}>{log}</div>)}
+        </div>
+      )}
+
+      {/* NAVEGAÇÃO */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-        <button onClick={() => setAbaAtiva('frota')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: abaAtiva === 'frota' ? '#4f46e5' : 'white', color: abaAtiva === 'frota' ? 'white' : '#64748b', cursor: 'pointer', fontWeight: 'bold' }}>🚚 FROTA ({frota.length})</button>
-        <button onClick={() => setAbaAtiva('docs')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: abaAtiva === 'docs' ? '#4f46e5' : 'white', color: abaAtiva === 'docs' ? 'white' : '#64748b', cursor: 'pointer', fontWeight: 'bold' }}>📂 ARQUIVOS ({arquivos.length})</button>
+        <button onClick={() => setAbaAtiva('frota')} style={{ flex: 1, padding: '15px', borderRadius: '12px', border: 'none', background: abaAtiva === 'frota' ? '#4c51bf' : 'white', color: abaAtiva === 'frota' ? 'white' : '#4a5568', fontWeight: 'bold', cursor: 'pointer' }}>🚚 FROTA AUDITADA ({frota.length})</button>
+        <button onClick={() => setAbaAtiva('docs')} style={{ flex: 1, padding: '15px', borderRadius: '12px', border: 'none', background: abaAtiva === 'docs' ? '#4c51bf' : 'white', color: abaAtiva === 'docs' ? 'white' : '#4a5568', fontWeight: 'bold', cursor: 'pointer' }}>📂 ARQUIVOS BRUTOS ({arquivos.length})</button>
       </div>
 
-      {/* CONTEÚDO */}
-      <div style={{ background: 'white', borderRadius: '15px', padding: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+      {/* TABELA / RESULTADO */}
+      <div style={{ background: 'white', borderRadius: '20px', padding: '30px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
         {abaAtiva === 'frota' ? (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '2px solid #f1f5f9', color: '#64748b' }}>
-                <th style={{ padding: '15px' }}>PLACA</th>
-                <th style={{ padding: '15px' }}>CIV</th>
-                <th style={{ padding: '15px' }}>CIPP</th>
-                <th style={{ padding: '15px', textAlign: 'center' }}>DOC</th>
+              <tr style={{ textAlign: 'left', borderBottom: '2px solid #edf2f7', color: '#718096', fontSize: '14px' }}>
+                <th style={{ padding: '15px' }}>PLACA IDENTIFICADA</th>
+                <th style={{ padding: '15px' }}>DOC. CIV</th>
+                <th style={{ padding: '15px' }}>DOC. CIPP</th>
+                <th style={{ padding: '15px', textAlign: 'center' }}>PDF</th>
               </tr>
             </thead>
             <tbody>
-              {frota.length === 0 ? (
-                  <tr><td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Nenhum veículo identificado. Verifique se o nome do arquivo contém a placa.</td></tr>
-              ) : (
-                  frota.map(v => (
-                  <tr key={v.id} style={{ borderBottom: '1px solid #f8fafc' }}>
-                      <td style={{ padding: '15px', fontWeight: 'bold', fontSize: '18px' }}>{v.placa}</td>
-                      <td style={{ color: v.validade_civ === 'PENDENTE' ? '#ef4444' : '#059669', fontWeight: 'bold' }}>{v.validade_civ}</td>
-                      <td style={{ color: v.validade_cipp === 'PENDENTE' ? '#ef4444' : '#059669', fontWeight: 'bold' }}>{v.validade_cipp}</td>
-                      <td style={{ textAlign: 'center' }}><a href={v.url_doc_referencia} target="_blank" rel="noreferrer"><Eye size={22} color="#4f46e5"/></a></td>
-                  </tr>
-                  ))
+              {frota.map(v => (
+                <tr key={v.id} style={{ borderBottom: '1px solid #f7fafc' }}>
+                  <td style={{ padding: '15px', fontWeight: 'bold', fontSize: '18px', color: '#2d3748' }}>{v.placa}</td>
+                  <td style={{ padding: '15px' }}>
+                    <span style={{ background: v.validade_civ === 'PENDENTE' ? '#fff5f5' : '#f0fff4', color: v.validade_civ === 'PENDENTE' ? '#c53030' : '#2f855a', padding: '5px 10px', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px' }}>{v.validade_civ}</span>
+                  </td>
+                  <td style={{ padding: '15px' }}>
+                    <span style={{ background: v.validade_cipp === 'PENDENTE' ? '#fff5f5' : '#f0fff4', color: v.validade_cipp === 'PENDENTE' ? '#c53030' : '#2f855a', padding: '5px 10px', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px' }}>{v.validade_cipp}</span>
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <a href={v.url_doc_referencia} target="_blank" rel="noreferrer" style={{ color: '#4c51bf' }}><Eye size={24} /></a>
+                  </td>
+                </tr>
+              ))}
+              {frota.length === 0 && (
+                <tr><td colSpan="4" style={{ padding: '50px', textAlign: 'center', color: '#a0aec0' }}>Aguardando upload de arquivos com placas no nome...</td></tr>
               )}
             </tbody>
           </table>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '15px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
             {arquivos.map(a => (
-              <div key={a.id} style={{ border: '1px solid #e2e8f0', padding: '15px', borderRadius: '10px', textAlign: 'center' }}>
-                <FileText size={24} color="#6366f1" style={{ margin: '0 auto 10px' }} />
-                <div style={{ fontSize: '10px', fontWeight: 'bold', wordBreak: 'break-all' }}>{a.nome_arquivo}</div>
-                <div style={{ fontSize: '10px', color: '#10b981', marginTop: '5px' }}>Placa: {a.placa_relacionada}</div>
+              <div key={a.id} style={{ border: '1px solid #e2e8f0', padding: '15px', borderRadius: '15px', textAlign: 'center' }}>
+                <FileText size={30} color="#4c51bf" style={{ margin: '0 auto 10px' }} />
+                <div style={{ fontSize: '11px', fontWeight: 'bold', wordBreak: 'break-all' }}>{a.nome_arquivo}</div>
+                <div style={{ fontSize: '10px', color: '#48bb78', marginTop: '10px', fontWeight: 'bold' }}>Placa Detectada: {a.placa_relacionada}</div>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+      <style>{`.animate-spin { animation: spin 1s linear infinite; } @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
