@@ -1,19 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
-  ShieldCheck, LayoutGrid, Truck, FileCheck, Cpu, 
-  Terminal, UploadCloud, Trash2, CheckCircle, AlertTriangle, Search
+  UploadCloud, Search, CheckCircle, XCircle, FileBarChart, 
+  Printer, X, Bot, Sparkles, Trash2, ShieldCheck, Eye, Edit3, Truck, LayoutGrid
 } from 'lucide-react';
 
 const SUPABASE_URL = 'https://gmhxmtlidgcgpstxiiwg.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'; 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-export default function SiLAM_Maximus_v6() {
-  const [abaAtiva, setAbaAtiva] = useState('central');
+const DOCUMENTOS_OBRIGATORIOS = [
+  "processo_caeli_transportes_semas_lo.pdf", "planilha_atualizada_caeli_julho_2025.pdf",
+  "planilha_atualizada_caeli_julho_2025.docx", "lo_15793_2025_cardoso_e_prates.pdf",
+  "5.2_ctpp___carreta_2_tvo9d17.pdf", "5.1_ctpp___carreta_1_tvo9d07.pdf",
+  "4.2_nf_carreta_2_tvo9d17.pdf", "4.1_nf_carreta_1_tvo9d07.pdf",
+  "3.2_crlv_carreta_2_tvo9d17.pdf", "3.1_crlv_carreta_1_tvo9d07.pdf",
+  "2_dia_caeli_2025.pdf", "1_requerimento_padrao_semas_pa_2025.pdf", "0___oficio.pdf"
+];
+
+export default function MaximusV52() {
   const [arquivos, setArquivos] = useState([]);
   const [frota, setFrota] = useState([]);
-  const [logs, setLogs] = useState([`> [${new Date().toLocaleTimeString()}] SISTEMA MAXIMUS V6.1 INICIALIZADO.`]);
+  const [abaAtiva, setAbaAtiva] = useState('dossie');
+  const [loading, setLoading] = useState(false);
+  const [busca, setBusca] = useState('');
+  const [mostrarRelatorio, setMostrarRelatorio] = useState(false);
 
   useEffect(() => { carregarDados(); }, []);
 
@@ -24,105 +35,177 @@ export default function SiLAM_Maximus_v6() {
     if (veiculos) setFrota(veiculos);
   }
 
-  const RenderFrota = () => (
-    <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in duration-500">
-      <div className="bg-slate-900 p-6 flex justify-between items-center">
-        <h3 className="text-white font-black uppercase text-sm flex items-center">
-          <Truck className="mr-2 text-green-400" /> Controle de Frota Atualizado
-        </h3>
-        <span className="text-[10px] text-slate-400 font-bold uppercase italic">Status em Tempo Real</span>
-      </div>
-      <table className="w-full text-left text-[11px]">
-        <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-black uppercase">
-          <tr>
-            <th className="p-4 text-center">Status</th>
-            <th className="p-4">Veículo / Placa</th>
-            <th className="p-4">Motorista</th>
-            <th className="p-4">Validade CIV/CIPP</th>
-            <th className="p-4 text-center">Evidência PDF</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {frota.map((v, i) => {
-            const temDoc = arquivos.some(a => a.nome_arquivo.toLowerCase().includes(v.placa.toLowerCase()));
-            const vencido = v.validade_civ && new Date(v.validade_civ) < new Date();
-            return (
-              <tr key={i} className="hover:bg-green-50/50 transition-colors">
-                <td className="p-4 text-center">
-                  <span className={`px-3 py-1 rounded-full text-[9px] font-black text-white shadow-sm ${vencido ? 'bg-red-500' : 'bg-green-600'}`}>
-                    {vencido ? 'BLOQUEADO' : 'LIBERADO'}
-                  </span>
-                </td>
-                <td className="p-4 font-black text-slate-800">{v.placa}</td>
-                <td className="p-4 font-bold text-slate-500 uppercase">{v.motorista || 'Não Informado'}</td>
-                <td className="p-4 font-bold text-slate-600 italic">{v.validade_civ || 'Pendente'}</td>
-                <td className="p-4 text-center font-black">
-                  {temDoc ? <span className="text-blue-600 flex items-center justify-center"><CheckCircle size={14} className="mr-1"/> VINCULADO</span> : <span className="text-slate-300">AGUARDANDO</span>}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
+  const handleUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    setLoading(true);
+    for (const file of files) {
+      const nomeLimpo = file.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9.]/g, "_");
+      const autoAprovado = DOCUMENTOS_OBRIGATORIOS.includes(nomeLimpo);
+      const path = `dossie/${Date.now()}_${nomeLimpo}`;
+
+      const { error } = await supabase.storage.from('processos-ambientais').upload(path, file);
+      if (!error) {
+        const { data: url } = supabase.storage.from('processos-ambientais').getPublicUrl(path);
+        await supabase.from('arquivos_processo').insert([{ 
+          nome_arquivo: nomeLimpo, url_publica: url.publicUrl, status: autoAprovado ? 'Aprovado' : 'Pendente', empresa_cnpj: '38.404.019/0001-76'
+        }]);
+      }
+    }
+    carregarDados();
+    setLoading(false);
+  };
+
+  const aprovados = arquivos.filter(a => a.status === 'Aprovado').length;
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#f8fafc] text-slate-900 font-sans antialiased">
-      <style>{`
-        @import url('https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css');
-        .phd-gradient { background: linear-gradient(135deg, #064e3b 0%, #065f46 50%, #14532d 100%); }
-        button { transition: all 0.2s ease-in-out; }
-      `}</style>
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f1f5f9', color: '#1e293b', fontFamily: 'Inter, sans-serif' }}>
+      
+      {/* SIDEBAR DARK */}
+      <aside style={{ width: '280px', backgroundColor: '#0f172a', color: 'white', padding: '30px', display: 'flex', flexDirection: 'column' }}>
+        <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#10b981', marginBottom: '5px' }}>MAXIMUS</h1>
+        <p style={{ fontSize: '10px', color: '#64748b', marginBottom: '40px' }}>CONTROLE DE AUDITORIA V5.2</p>
 
-      <header className="phd-gradient text-white px-8 h-20 flex justify-between items-center shadow-2xl border-b-4 border-green-400">
-        <div className="flex items-center space-x-4">
-          <div className="bg-white p-2 rounded-2xl shadow-lg"><ShieldCheck className="text-green-900" size={28} /></div>
-          <div>
-            <h1 className="text-xl font-black tracking-tighter uppercase leading-none">SiLAM-PA Maximus v6.1</h1>
-            <p className="text-[10px] font-bold text-green-300 tracking-[0.2em] uppercase mt-1">SISTEMA PH.D. DE CONFORMIDADE AMBIENTAL</p>
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '30px' }}>
+          <button onClick={() => setAbaAtiva('dossie')} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: abaAtiva === 'dossie' ? '#1e293b' : 'transparent', color: 'white', cursor: 'pointer', textAlign: 'left', fontWeight: 'bold' }}>
+            <LayoutGrid size={18} /> DOSSIÊ AMBIENTAL
+          </button>
+          <button onClick={() => setAbaAtiva('frota')} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: abaAtiva === 'frota' ? '#1e293b' : 'transparent', color: 'white', cursor: 'pointer', textAlign: 'left', fontWeight: 'bold' }}>
+            <Truck size={18} /> AUDITORIA DE FROTA
+          </button>
+        </nav>
+
+        <div style={{ backgroundColor: '#1e293b', padding: '20px', borderRadius: '15px', marginBottom: '20px' }}>
+          <p style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '10px' }}>STATUS DO DOSSIÊ</p>
+          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{aprovados} / 13</div>
+          <div style={{ height: '6px', backgroundColor: '#334155', borderRadius: '10px', marginTop: '10px', overflow: 'hidden' }}>
+            <div style={{ width: `${(aprovados/13)*100}%`, height: '100%', backgroundColor: '#10b981', transition: '0.5s' }} />
           </div>
         </div>
-      </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        <aside className="w-72 bg-white border-r border-slate-200 p-8 space-y-3 flex flex-col shadow-inner">
-          <button onClick={() => setAbaAtiva('central')} className={`flex items-center p-4 rounded-2xl text-[11px] font-black uppercase tracking-widest ${abaAtiva === 'central' ? 'bg-green-900 text-white shadow-xl scale-105' : 'text-slate-400 hover:bg-slate-50'}`}>
-            <LayoutGrid className="mr-3 w-5 h-5"/> Central de Dados
-          </button>
-          <button onClick={() => setAbaAtiva('frota')} className={`flex items-center p-4 rounded-2xl text-[11px] font-black uppercase tracking-widest ${abaAtiva === 'frota' ? 'bg-green-900 text-white shadow-xl scale-105' : 'text-slate-400 hover:bg-slate-50'}`}>
-            <Truck className="mr-3 w-5 h-5"/> Auditoria de Frota
-          </button>
-          <div className="mt-auto bg-slate-900 p-5 rounded-3xl border border-slate-700 shadow-2xl">
-            <h4 className="text-green-400 text-[10px] font-black uppercase mb-3 flex items-center tracking-tighter"><Terminal className="mr-2" size={12}/> Console Maximus</h4>
-            <div className="font-mono text-[9px] text-green-500 h-32 overflow-y-auto space-y-1 opacity-80">
-              {logs.map((log, i) => <div key={i}>{log}</div>)}
-            </div>
+        <button onClick={() => window.confirm("Resetar?") && supabase.from('arquivos_processo').delete().neq('id', '0').then(carregarDados)} 
+          style={{ marginTop: 'auto', padding: '12px', borderRadius: '10px', border: '1px solid #334155', background: 'none', color: '#f87171', cursor: 'pointer', fontSize: '12px' }}>
+          <Trash2 size={14} style={{ marginRight: '8px' }}/> RESETAR SISTEMA
+        </button>
+      </aside>
+
+      {/* PAINEL PRINCIPAL */}
+      <main style={{ flex: 1, padding: '40px' }}>
+        <header style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px' }}>
+          <div style={{ position: 'relative' }}>
+            <Search style={{ position: 'absolute', left: '15px', top: '12px', color: '#94a3b8' }} size={20}/>
+            <input 
+              type="text" placeholder="Localizar registro..." value={busca} onChange={e => setBusca(e.target.value)}
+              style={{ padding: '12px 15px 12px 45px', borderRadius: '12px', border: '1px solid #e2e8f0', width: '300px' }}
+            />
           </div>
-        </aside>
+          <div style={{ display: 'flex', gap: '15px' }}>
+            <button onClick={() => setMostrarRelatorio(true)} style={{ backgroundColor: '#10b981', color: 'white', padding: '12px 25px', borderRadius: '12px', fontWeight: 'bold', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileBarChart size={20}/> RELATÓRIO
+            </button>
+            <label style={{ backgroundColor: '#4f46e5', color: 'white', padding: '12px 25px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <UploadCloud size={20}/> {loading ? "SUBINDO..." : "CARREGAR"}
+              <input type="file" multiple onChange={handleUpload} hidden />
+            </label>
+          </div>
+        </header>
 
-        <main className="flex-1 p-12 overflow-y-auto">
-          {abaAtiva === 'frota' ? <RenderFrota /> : (
-            <div className="space-y-8 animate-in slide-in-from-bottom-5 duration-700">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <label className="bg-white p-16 rounded-[3rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center cursor-pointer hover:border-green-500 hover:bg-green-50/30 transition-all group shadow-sm">
-                  <div className="bg-green-100 p-8 rounded-full text-green-600 group-hover:scale-110 group-hover:bg-green-200 transition-all shadow-md"><UploadCloud size={48} /></div>
-                  <span className="mt-6 font-black uppercase text-slate-500 tracking-tighter">Ingestão de Evidências</span>
-                  <p className="text-[10px] text-slate-400 font-bold mt-2 uppercase">Arraste Laudos CIV/CIPP aqui</p>
-                  <input type="file" multiple hidden />
-                </label>
-                <div className="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-sm flex flex-col justify-center">
-                  <h3 className="font-black text-slate-800 uppercase text-sm mb-4">Resumo da Conformidade</h3>
-                  <div className="space-y-4 text-[11px] font-bold">
-                    <div className="flex justify-between p-3 bg-slate-50 rounded-xl"><span>VEÍCULOS ATIVOS:</span> <span className="text-green-600">{frota.length}</span></div>
-                    <div className="flex justify-between p-3 bg-slate-50 rounded-xl"><span>DOCS PENDENTES:</span> <span className="text-red-500">{frota.length - arquivos.filter(a => a.nome_arquivo.includes('CIV')).length}</span></div>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <div style={{ backgroundColor: 'white', borderRadius: '15px', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          {abaAtiva === 'dossie' ? (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ textAlign: 'left', borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '12px' }}>
+                  <th style={{ padding: '15px' }}>DOCUMENTO</th>
+                  <th style={{ padding: '15px' }}>STATUS</th>
+                  <th style={{ padding: '15px', textAlign: 'center' }}>AUDITORIA</th>
+                </tr>
+              </thead>
+              <tbody>
+                {arquivos.filter(a => a.nome_arquivo.includes(busca)).map(arq => (
+                  <tr key={arq.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                    <td style={{ padding: '15px', fontSize: '14px', fontWeight: '500' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {arq.status === 'Aprovado' && <Sparkles size={14} color="#f59e0b"/>}
+                        {arq.nome_arquivo}
+                      </div>
+                    </td>
+                    <td style={{ padding: '15px' }}>
+                      <span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', backgroundColor: arq.status === 'Aprovado' ? '#dcfce7' : '#fef3c7', color: arq.status === 'Aprovado' ? '#166534' : '#92400e' }}>
+                        {arq.status?.toUpperCase()}
+                      </span>
+                    </td>
+                    <td style={{ padding: '15px' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                        <a href={arq.url_publica} target="_blank" rel="noreferrer" style={{ padding: '8px', borderRadius: '8px', backgroundColor: '#f1f5f9', color: '#475569' }}><Eye size={16}/></a>
+                        <button onClick={() => supabase.from('arquivos_processo').update({status: 'Aprovado'}).eq('id', arq.id).then(carregarDados)} style={{ padding: '8px', borderRadius: '8px', border: '1px solid #10b981', color: '#10b981', background: 'none', cursor: 'pointer' }}><CheckCircle size={16}/></button>
+                        <button onClick={() => supabase.from('arquivos_processo').update({status: 'Pendente'}).eq('id', arq.id).then(carregarDados)} style={{ padding: '8px', borderRadius: '8px', border: '1px solid #ef4444', color: '#ef4444', background: 'none', cursor: 'pointer' }}><XCircle size={16}/></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            /* NOVA TABELA DE FROTA */
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ textAlign: 'left', borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '12px' }}>
+                  <th style={{ padding: '15px' }}>STATUS</th>
+                  <th style={{ padding: '15px' }}>PLACA / MOTORISTA</th>
+                  <th style={{ padding: '15px' }}>VALIDADE CIV</th>
+                  <th style={{ padding: '15px', textAlign: 'center' }}>VÍNCULO PDF</th>
+                </tr>
+              </thead>
+              <tbody>
+                {frota.filter(f => f.placa.includes(busca.toUpperCase())).map(v => {
+                  const temDoc = arquivos.some(a => a.nome_arquivo.includes(v.placa.toLowerCase()));
+                  const vencido = v.validade_civ && new Date(v.validade_civ) < new Date();
+                  return (
+                    <tr key={v.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                      <td style={{ padding: '15px' }}>
+                        <span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', backgroundColor: vencido ? '#fee2e2' : '#dcfce7', color: vencido ? '#b91c1c' : '#166534' }}>
+                          {vencido ? 'VENCIDO' : 'REGULAR'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '15px', fontSize: '13px' }}>
+                        <div style={{ fontWeight: 'bold' }}>{v.placa}</div>
+                        <div style={{ fontSize: '10px', color: '#94a3b8' }}>{v.motorista}</div>
+                      </td>
+                      <td style={{ padding: '15px', fontSize: '13px', color: '#475569' }}>{v.validade_civ || 'N/A'}</td>
+                      <td style={{ padding: '15px', textAlign: 'center' }}>
+                        {temDoc ? <CheckCircle size={18} color="#10b981"/> : <XCircle size={18} color="#94a3b8"/>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
-        </main>
-      </div>
+        </div>
+      </main>
+
+      {/* RELATÓRIO MODAL */}
+      {mostrarRelatorio && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ backgroundColor: 'white', width: '800px', maxHeight: '90vh', overflowY: 'auto', padding: '40px', borderRadius: '12px', position: 'relative' }}>
+            <button onClick={() => setMostrarRelatorio(false)} style={{ position: 'absolute', top: '20px', right: '20px', border: 'none', background: 'none', cursor: 'pointer' }}><X size={24}/></button>
+            <div id="print-area">
+              <h2 style={{ borderBottom: '2px solid #0f172a', paddingBottom: '10px', marginBottom: '20px' }}>Dossiê e Auditoria de Frota</h2>
+              <p><strong>Empresa:</strong> Caeli Transportes | <strong>CNPJ:</strong> 38.404.019/0001-76</p>
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px', fontSize: '12px' }}>
+                <thead><tr style={{ backgroundColor: '#f8fafc' }}><th style={{ border: '1px solid #e2e8f0', padding: '8px' }}>Item</th><th style={{ border: '1px solid #e2e8f0', padding: '8px' }}>Status</th></tr></thead>
+                <tbody>
+                  {arquivos.map(a => (<tr key={a.id}><td style={{ border: '1px solid #e2e8f0', padding: '8px' }}>{a.nome_arquivo}</td><td style={{ border: '1px solid #e2e8f0', padding: '8px' }}>{a.status}</td></tr>))}
+                </tbody>
+              </table>
+            </div>
+            <button onClick={() => window.print()} style={{ width: '100%', marginTop: '30px', padding: '15px', backgroundColor: '#0f172a', color: 'white', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>IMPRIMIR PDF</button>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @media print { body * { visibility: hidden; } #print-area, #print-area * { visibility: visible; } #print-area { position: absolute; left: 0; top: 0; width: 100%; } }
+      `}</style>
     </div>
   );
 }
