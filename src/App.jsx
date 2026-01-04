@@ -8,98 +8,88 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 export default function App() {
   const [frota, setFrota] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState(""); // BARRA DE MENSAGEM
 
   useEffect(() => { carregarDados(); }, []);
 
   async function carregarDados() {
-    const { data } = await supabase.from('frota_veiculos').select('*').order('placa', { ascending: true });
-    setFrota(data || []);
+    try {
+      const { data, error } = await supabase.from('frota_veiculos').select('*').order('placa', { ascending: true });
+      if (error) setMsg("Erro ao carregar banco: " + error.message);
+      setFrota(data || []);
+    } catch (e) { setMsg("Erro crítico: " + e.message); }
   }
 
-  // FUNÇÃO DE DETECÇÃO MELHORADA (Lê qualquer formato)
-  const extrairTudo = (nomeArquivo) => {
-    const limpo = nomeArquivo.toUpperCase().replace(/\s/g, '');
-    
-    // Procura Padrão Mercosul ou Antigo em qualquer lugar do nome
-    const regexPlaca = /([A-Z]{3}[0-9][A-Z0-9][0-9]{2})|([A-Z]{3}[0-9]{4})/;
-    const encontrado = limpo.match(regexPlaca);
-    
-    return encontrado ? encontrado[0] : "PLACA-NAO-IDENTIFICADA";
+  const extrairPlaca = (nome) => {
+    const limpo = nome.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const m = limpo.match(/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/) || limpo.match(/[A-Z]{3}[0-9]{4}/);
+    return m ? m[0] : "SEM_PLACA";
   };
 
   async function handleUpload(e) {
     const files = Array.from(e.target.files);
     if (!files.length) return;
     setLoading(true);
+    setMsg("Iniciando processamento de " + files.length + " arquivos...");
 
     for (const file of files) {
-      const placaDetectada = extrairTudo(file.name);
-      
-      // Upload aceitando qualquer tipo (MIME TYPE automático)
-      const path = `v63/${Date.now()}_${file.name}`;
-      await supabase.storage.from('processos-ambientais').upload(path, file);
-      const { data: urlData } = supabase.storage.from('processos-ambientais').getPublicUrl(path);
+      try {
+        const placa = extrairPlaca(file.name);
+        const path = `v64/${Date.now()}_${file.name}`;
+        
+        // Tenta o Upload
+        const { error: upError } = await supabase.storage.from('processos-ambientais').upload(path, file);
+        if (upError) { setMsg("Erro no Upload: " + upError.message); continue; }
 
-      const isCiv = file.name.toUpperCase().includes("CIV") || file.name.includes("31");
-      const isCipp = file.name.toUpperCase().includes("CIPP") || file.name.includes("52");
+        const { data: urlData } = supabase.storage.from('processos-ambientais').getPublicUrl(path);
 
-      const { data: ex } = await supabase.from('frota_veiculos').select('*').eq('placa', placaDetectada).maybeSingle();
-      
-      const payload = {
-        placa: placaDetectada,
-        motorista: "DOC_IMPORTADO",
-        validade_civ: isCiv ? "31/12/2026" : (ex?.validade_civ || "PENDENTE"),
-        validade_cipp: isCipp ? "31/12/2026" : (ex?.validade_cipp || "PENDENTE"),
-        url_doc_referencia: urlData.publicUrl
-      };
+        // Tenta salvar no Banco
+        const payload = {
+          placa: placa,
+          motorista: "AUDITORIA_V64",
+          validade_civ: "PENDENTE",
+          validade_cipp: "PENDENTE",
+          url_doc_referencia: urlData.publicUrl
+        };
 
-      if (ex && placaDetectada !== "PLACA-NAO-IDENTIFICADA") {
-        await supabase.from('frota_veiculos').update(payload).eq('id', ex.id);
-      } else {
-        await supabase.from('frota_veiculos').insert([payload]);
-      }
+        const { error: dbError } = await supabase.from('frota_veiculos').upsert(payload, { onConflict: 'placa' });
+        if (dbError) setMsg("Erro no Banco: " + dbError.message);
+        else setMsg("Sucesso! Veículo " + placa + " atualizado.");
+
+      } catch (err) { setMsg("Falha geral: " + err.message); }
     }
     setLoading(false);
     carregarDados();
   }
 
   return (
-    <div style={{ backgroundColor: '#0a0f1e', color: '#e2e8f0', minHeight: '100vh', padding: '30px', fontFamily: 'system-ui' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e293b', paddingBottom: '20px' }}>
-        <div>
-          <h1 style={{ color: '#38bdf8', margin: 0 }}>MAXIMUS v63</h1>
-          <p style={{ fontSize: '12px', color: '#94a3b8' }}>SUPORTA: PDF, XLSX, DOCX, JPG, JSON</p>
-        </div>
-        <label style={{ backgroundColor: '#38bdf8', color: '#000', padding: '12px 24px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
-          {loading ? "PROCESSANDO ARQUIVOS..." : "SUBIR QUALQUER ARQUIVO"}
-          <input type="file" multiple onChange={handleUpload} hidden />
-        </label>
-      </header>
-
-      <div style={{ marginTop: '30px' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-          <thead>
-            <tr style={{ color: '#94a3b8', borderBottom: '1px solid #1e293b' }}>
-              <th style={{ padding: '12px' }}>VEÍCULO (PLACA)</th>
-              <th style={{ padding: '12px' }}>CIV</th>
-              <th style={{ padding: '12px' }}>CIPP</th>
-              <th style={{ padding: '12px' }}>AÇÕES</th>
-            </tr>
-          </thead>
-          <tbody>
-            {frota.map(v => (
-              <tr key={v.id} style={{ borderBottom: '1px solid #1e293b', backgroundColor: v.placa === 'PLACA-NAO-IDENTIFICADA' ? '#2d1a1a' : 'transparent' }}>
-                <td style={{ padding: '12px', fontWeight: 'bold' }}>{v.placa}</td>
-                <td style={{ padding: '12px' }}>{v.validade_civ}</td>
-                <td style={{ padding: '12px' }}>{v.validade_cipp}</td>
-                <td style={{ padding: '12px' }}>
-                  <a href={v.url_doc_referencia} target="_blank" style={{ color: '#38bdf8' }}>VER ARQUIVO</a>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div style={{ backgroundColor: '#000', color: '#0f0', minHeight: '100vh', padding: '20px', fontFamily: 'monospace' }}>
+      <div style={{ border: '1px solid #0f0', padding: '15px', marginBottom: '20px' }}>
+        <h2>MAXIMUS SYSTEM v64</h2>
+        <div style={{ color: 'yellow', fontWeight: 'bold' }}>LOG: {msg || "Aguardando ação..."}</div>
       </div>
+
+      <input type="file" multiple onChange={handleUpload} style={{ marginBottom: '20px', color: '#0f0' }} />
+      {loading && <p>CONECTANDO AO SATÉLITE...</p>}
+
+      <table style={{ width: '100%', border: '1px solid #0f0' }}>
+        <thead>
+          <tr>
+            <th>PLACA</th>
+            <th>DOCS</th>
+            <th>LINK</th>
+          </tr>
+        </thead>
+        <tbody>
+          {frota.map(v => (
+            <tr key={v.id}>
+              <td>{v.placa}</td>
+              <td>CIV: {v.validade_civ}</td>
+              <td><a href={v.url_doc_referencia} target="_blank" style={{color: '#fff'}}>[ABRIR]</a></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
