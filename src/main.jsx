@@ -18,17 +18,18 @@ export default function App() {
 
   const extrairPlaca = (nome) => {
     const n = nome.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const m = n.match(/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/) || n.match(/[A-Z]{3}[0-9]{4}/);
+    const m = n.match(/[A-Z]{3}[0-9][A-Z][0-9]{2}/) || n.match(/[A-Z]{3}[0-9]{4}/);
     return m ? m[0] : null;
   };
 
   async function handleUpload(e) {
     const files = Array.from(e.target.files);
+    if (!files.length) return;
     setLoading(true);
     for (const file of files) {
       const placa = extrairPlaca(file.name);
       if (placa) {
-        const path = `v38/${Date.now()}_${file.name}`;
+        const path = `v39/${Date.now()}_${file.name}`;
         await supabase.storage.from('processos-ambientais').upload(path, file);
         const { data: url } = supabase.storage.from('processos-ambientais').getPublicUrl(path);
         
@@ -52,40 +53,38 @@ export default function App() {
   }
 
   return (
-    <div style={{ backgroundColor: '#0f172a', color: 'white', minHeight: '100vh', padding: '40px', fontFamily: 'sans-serif' }}>
-      <div style={{ borderBottom: '2px solid #38bdf8', paddingBottom: '20px', marginBottom: '30px' }}>
-        <h1 style={{ fontSize: '36px', margin: 0 }}>MAXIMUS v38.0</h1>
-        <p style={{ color: '#38bdf8', fontWeight: 'bold' }}>SISTEMA ATUALIZADO E PRONTO</p>
+    <div style={{ backgroundColor: '#000', color: '#0f0', minHeight: '100vh', padding: '30px', fontFamily: 'monospace' }}>
+      <div style={{ border: '2px solid #0f0', padding: '20px', marginBottom: '20px' }}>
+        <h1 style={{ margin: 0 }}>MAXIMUS SYSTEM v39.0</h1>
+        <p>STATUS: SISTEMA OPERACIONAL | BANCO: CONECTADO</p>
       </div>
 
-      <div style={{ marginBottom: '30px', display: 'flex', gap: '20px' }}>
-        <label style={{ backgroundColor: '#38bdf8', color: '#0f172a', padding: '15px 30px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-          {loading ? "SINCRONIZANDO..." : "1. CLIQUE AQUI PARA SUBIR PDFS"}
+      <div style={{ marginBottom: '20px' }}>
+        <label style={{ backgroundColor: '#0f0', color: '#000', padding: '15px 20px', fontWeight: 'bold', cursor: 'pointer', display: 'inline-block' }}>
+          {loading ? ">>> PROCESSANDO <<<" : "[ CARREGAR DOCUMENTOS ]"}
           <input type="file" multiple onChange={handleUpload} hidden />
         </label>
-        <button onClick={() => carregarDados()} style={{ background: 'none', border: '1px solid #38bdf8', color: '#38bdf8', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer' }}>
-          ATUALIZAR TELA
-        </button>
+        <button onClick={() => carregarDados()} style={{ marginLeft: '10px', background: 'none', border: '1px solid #0f0', color: '#0f0', padding: '15px', cursor: 'pointer' }}>RECARREGAR</button>
       </div>
 
-      <div style={{ backgroundColor: '#1e293b', padding: '20px', borderRadius: '12px' }}>
-        <h2>FROTA ATIVA ({frota.length})</h2>
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
+      <div style={{ border: '1px solid #0f0', padding: '15px' }}>
+        <h2 style={{ borderBottom: '1px solid #0f0' }}>LISTA DE FROTA ({frota.length})</h2>
+        <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ textAlign: 'left', color: '#94a3b8', borderBottom: '1px solid #334155' }}>
+            <tr>
               <th style={{ padding: '10px' }}>PLACA</th>
               <th style={{ padding: '10px' }}>CIV</th>
               <th style={{ padding: '10px' }}>CIPP</th>
-              <th style={{ padding: '10px' }}>ARQUIVO</th>
+              <th style={{ padding: '10px' }}>URL</th>
             </tr>
           </thead>
           <tbody>
             {frota.map(v => (
-              <tr key={v.id} style={{ borderBottom: '1px solid #334155' }}>
-                <td style={{ padding: '15px', fontWeight: 'bold', fontSize: '20px' }}>{v.placa}</td>
-                <td style={{ color: v.validade_civ === 'PENDENTE' ? '#f87171' : '#4ade80' }}>{v.validade_civ}</td>
-                <td style={{ color: v.validade_cipp === 'PENDENTE' ? '#f87171' : '#4ade80' }}>{v.validade_cipp}</td>
-                <td><a href={v.url_doc_referencia} target="_blank" style={{ color: '#38bdf8' }}>ABRIR</a></td>
+              <tr key={v.id} style={{ borderTop: '1px solid #040' }}>
+                <td style={{ padding: '10px', fontSize: '18px' }}>{v.placa}</td>
+                <td style={{ color: v.validade_civ === 'PENDENTE' ? 'red' : '#0f0' }}>{v.validade_civ}</td>
+                <td style={{ color: v.validade_cipp === 'PENDENTE' ? 'red' : '#0f0' }}>{v.validade_cipp}</td>
+                <td><a href={v.url_doc_referencia} target="_blank" style={{ color: '#0f0' }}>[VER]</a></td>
               </tr>
             ))}
           </tbody>
