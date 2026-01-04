@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   UploadCloud, Search, CheckCircle, Trash2, Truck, 
-  LayoutGrid, FileText, AlertTriangle, User, Download
+  LayoutGrid, FileText, AlertTriangle, Download, Calendar
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -11,7 +11,7 @@ const SUPABASE_URL = 'https://gmhxmtlidgcgpstxiiwg.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'; 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-export default function MaximusV11() {
+export default function MaximusV12() {
   const [arquivos, setArquivos] = useState([]);
   const [frota, setFrota] = useState([]);
   const [abaAtiva, setAbaAtiva] = useState('frota');
@@ -29,13 +29,20 @@ export default function MaximusV11() {
 
   const extrairInteligencia = (nomeArquivo) => {
     const texto = nomeArquivo.toUpperCase();
+    
+    // Procura Placa
     const placaMatch = texto.replace(/-/g, '').match(/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/);
     const placa = placaMatch ? placaMatch[0].replace(/^([A-Z]{3})([0-9][A-Z0-9][0-9]{2})$/, "$1-$2") : null;
     
+    // Procura Data (ex: 20/12/2026 ou 2026-12-31)
+    const dataMatch = nomeArquivo.match(/(\d{2}\/\d{2}\/\d{4})|(\d{4}-\d{2}-\d{2})/);
+    const dataValidade = dataMatch ? dataMatch[0] : "31/12/2026"; // Data padrão se não houver no nome
+
     return {
       placa,
-      isCiv: texto.includes("CIV") || texto.includes("CRLV"),
-      isCipp: texto.includes("CIPP") || texto.includes("CTPP")
+      dataValidade,
+      isCiv: texto.includes("CIV") || texto.includes("CRLV") || texto.includes("LAUDO"),
+      isCipp: texto.includes("CIPP") || texto.includes("CTPP") || texto.includes("CTP")
     };
   };
 
@@ -59,9 +66,9 @@ export default function MaximusV11() {
           
           const dadosFrota = {
             placa: info.placa,
-            motorista: existente?.motorista || "MOTORISTA PADRÃO",
-            validade_civ: info.isCiv ? "CONFORME" : (existente?.validade_civ || "PENDENTE"),
-            validade_cipp: info.isCipp ? "CONFORME" : (existente?.validade_cipp || "PENDENTE")
+            motorista: existente?.motorista || "IDENTIFICADO POR DOC",
+            validade_civ: info.isCiv ? info.dataValidade : (existente?.validade_civ || "PENDENTE"),
+            validade_cipp: info.isCipp ? info.dataValidade : (existente?.validade_cipp || "PENDENTE")
           };
 
           if (existente) {
@@ -78,103 +85,123 @@ export default function MaximusV11() {
 
   const gerarRelatorioPDF = () => {
     const doc = new jsPDF();
-    doc.text("Relatório de Auditoria de Frota - Maximus AI", 14, 15);
-    const colunas = ["Placa", "Motorista", "Status CIV", "Status CIPP"];
-    const linhas = frota.map(v => [v.placa, v.motorista, v.validade_civ, v.validade_cipp]);
+    doc.setFontSize(18);
+    doc.text("MAXIMUS AI - RELATÓRIO DE AUDITORIA", 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Gerado em: ${new Date().toLocaleString()}`, 14, 28);
+
+    const colunas = ["Placa", "Motorista", "CIV / CRLV", "CIPP / CTPP", "Status"];
+    const linhas = frota.map(v => [
+      v.placa, 
+      v.motorista, 
+      v.validade_civ, 
+      v.validade_cipp,
+      (v.validade_civ !== "PENDENTE" && v.validade_cipp !== "PENDENTE") ? "CONFORME" : "PENDENTE"
+    ]);
     
     doc.autoTable({
       head: [colunas],
       body: linhas,
-      startY: 25,
-      theme: 'grid'
+      startY: 35,
+      headStyles: { fillColor: [16, 185, 129] },
+      theme: 'striped'
     });
-    doc.save(`auditoria_frota_${new Date().toLocaleDateString()}.pdf`);
+    doc.save(`Auditoria_Frota_Maximus_${Date.now()}.pdf`);
   };
 
-  const resetarAmbiente = async () => {
-    if(!confirm("Deseja apagar todos os dados e começar do zero?")) return;
+  const resetarAmbienteTotal = async () => {
+    if(!confirm("AVISO CRÍTICO: Isto apagará DEFINITIVAMENTE todos os dados de todas as tabelas. Deseja continuar?")) return;
     setLoading(true);
     
-    // Deleta registros um por um para evitar erro 400 de política de segurança
-    const { data: v } = await supabase.from('frota_veiculos').select('id');
-    if(v) for(const item of v) await supabase.from('frota_veiculos').delete().eq('id', item.id);
-    
-    const { data: a } = await supabase.from('arquivos_processo').select('id');
-    if(a) for(const item of a) await supabase.from('arquivos_processo').delete().eq('id', item.id);
+    try {
+      // 1. Apaga Documentos um por um (Evita erro 400 RLS)
+      const { data: d } = await supabase.from('arquivos_processo').select('id');
+      if(d) for(const doc of d) await supabase.from('arquivos_processo').delete().eq('id', doc.id);
 
-    setFrota([]);
-    setArquivos([]);
-    setLoading(false);
-    alert("Ambiente Resetado com Sucesso!");
+      // 2. Apaga Frota um por um
+      const { data: f } = await supabase.from('frota_veiculos').select('id');
+      if(f) for(const veic of f) await supabase.from('frota_veiculos').delete().eq('id', veic.id);
+
+      setFrota([]);
+      setArquivos([]);
+      alert("Ambiente totalmente limpo!");
+    } catch (e) {
+      alert("Erro ao resetar. Tente novamente.");
+    } finally {
+      setLoading(false);
+      carregarDados();
+    }
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f8fafc', fontFamily: 'sans-serif' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f1f5f9', fontFamily: 'Inter, sans-serif' }}>
       {/* SIDEBAR */}
       <aside style={{ width: '280px', backgroundColor: '#0f172a', color: 'white', padding: '30px', display: 'flex', flexDirection: 'column' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: 'bold', color: '#10b981', marginBottom: '40px' }}>MAXIMUS v11</h1>
+        <h1 style={{ fontSize: '22px', fontWeight: '900', color: '#10b981', marginBottom: '40px' }}>MAXIMUS v12</h1>
         
-        <div style={{ backgroundColor: '#1e293b', padding: '20px', borderRadius: '15px', marginBottom: '30px' }}>
-          <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '5px' }}>CONFORMIDADE GERAL</div>
-          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{frota.filter(v => v.validade_civ === "CONFORME" && v.validade_cipp === "CONFORME").length} / {frota.length}</div>
-        </div>
-
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <button onClick={() => setAbaAtiva('frota')} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: abaAtiva === 'frota' ? '#334155' : 'transparent', color: 'white', cursor: 'pointer', textAlign: 'left' }}>
+          <button onClick={() => setAbaAtiva('frota')} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', borderRadius: '12px', border: 'none', backgroundColor: abaAtiva === 'frota' ? '#334155' : 'transparent', color: 'white', cursor: 'pointer', textAlign: 'left', fontWeight: '600' }}>
             <Truck size={18} /> GESTÃO DE FROTA
           </button>
-          <button onClick={() => setAbaAtiva('docs')} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: abaAtiva === 'docs' ? '#334155' : 'transparent', color: 'white', cursor: 'pointer', textAlign: 'left' }}>
-            <LayoutGrid size={18} /> DOCUMENTOS ({arquivos.length})
+          <button onClick={() => setAbaAtiva('docs')} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', borderRadius: '12px', border: 'none', backgroundColor: abaAtiva === 'docs' ? '#334155' : 'transparent', color: 'white', cursor: 'pointer', textAlign: 'left', fontWeight: '600' }}>
+            <LayoutGrid size={18} /> ARQUIVOS ({arquivos.length})
           </button>
         </nav>
 
-        <button onClick={resetarAmbiente} style={{ marginTop: 'auto', padding: '12px', borderRadius: '10px', border: 'none', background: '#450a0a', color: '#f87171', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-          <Trash2 size={16} /> RESETAR TUDO
+        <button onClick={resetarAmbienteTotal} style={{ marginTop: 'auto', padding: '14px', borderRadius: '12px', border: 'none', background: '#450a0a', color: '#f87171', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+          <Trash2 size={16} /> LIMPAR TUDO
         </button>
       </aside>
 
       {/* CONTEUDO */}
-      <main style={{ flex: 1, padding: '40px' }}>
+      <main style={{ flex: 1, padding: '40px', overflowY: 'auto' }}>
         <header style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px', alignItems: 'center' }}>
-          <input type="text" placeholder="Buscar placa..." value={busca} onChange={e => setBusca(e.target.value)} style={{ padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0', width: '300px' }} />
+          <div style={{ position: 'relative' }}>
+            <Search style={{ position: 'absolute', left: '12px', top: '12px', color: '#94a3b8' }} size={18} />
+            <input type="text" placeholder="Filtrar placa..." value={busca} onChange={e => setBusca(e.target.value)} style={{ padding: '12px 12px 12px 40px', borderRadius: '10px', border: '1px solid #cbd5e1', width: '300px' }} />
+          </div>
           
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={gerarRelatorioPDF} style={{ backgroundColor: '#10b981', color: 'white', padding: '12px 20px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Download size={18}/> RELATÓRIO PDF
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button onClick={gerarRelatorioPDF} style={{ backgroundColor: '#10b981', color: 'white', padding: '12px 24px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Download size={18}/> PDF
             </button>
-            <label style={{ backgroundColor: '#4f46e5', color: 'white', padding: '12px 20px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <UploadCloud size={18}/> {loading ? "CARREGANDO..." : "CARREGAR DOCS"}
+            <label style={{ backgroundColor: '#4f46e5', color: 'white', padding: '12px 24px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <UploadCloud size={18}/> {loading ? "A PROCESSAR..." : "ALIMENTAR"}
               <input type="file" multiple onChange={handleUpload} hidden />
             </label>
           </div>
         </header>
 
-        <div style={{ backgroundColor: 'white', borderRadius: '20px', padding: '25px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+        <div style={{ backgroundColor: 'white', borderRadius: '20px', padding: '25px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
           {abaAtiva === 'frota' ? (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ textAlign: 'left', borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '13px' }}>
-                  <th style={{ padding: '15px' }}>VEÍCULO</th>
-                  <th style={{ padding: '15px' }}>SITUAÇÃO CIV</th>
-                  <th style={{ padding: '15px' }}>SITUAÇÃO CIPP</th>
-                  <th style={{ padding: '15px' }}>STATUS</th>
+                <tr style={{ textAlign: 'left', borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '12px', textTransform: 'uppercase' }}>
+                  <th style={{ padding: '15px' }}>Veículo / Motorista</th>
+                  <th style={{ padding: '15px' }}>Validade CIV</th>
+                  <th style={{ padding: '15px' }}>Validade CIPP</th>
+                  <th style={{ padding: '15px', textAlign: 'center' }}>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {frota.filter(f => f.placa.includes(busca.toUpperCase())).map(v => (
-                  <tr key={v.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <tr key={v.id} style={{ borderBottom: '1px solid #f8fafc' }}>
                     <td style={{ padding: '15px' }}>
-                      <div style={{ fontWeight: 'bold', fontSize: '16px' }}>{v.placa}</div>
-                      <div style={{ fontSize: '12px', color: '#94a3b8' }}>{v.motorista}</div>
+                      <div style={{ fontWeight: '800', fontSize: '16px', color: '#1e293b' }}>{v.placa}</div>
+                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>{v.motorista}</div>
                     </td>
                     <td style={{ padding: '15px' }}>
-                      <span style={{ color: v.validade_civ === "CONFORME" ? '#059669' : '#94a3b8', fontWeight: 'bold' }}>{v.validade_civ}</span>
+                      <span style={{ color: v.validade_civ !== "PENDENTE" ? '#059669' : '#ef4444', fontWeight: 'bold', fontSize: '13px' }}>
+                         {v.validade_civ}
+                      </span>
                     </td>
                     <td style={{ padding: '15px' }}>
-                      <span style={{ color: v.validade_cipp === "CONFORME" ? '#059669' : '#94a3b8', fontWeight: 'bold' }}>{v.validade_cipp}</span>
+                      <span style={{ color: v.validade_cipp !== "PENDENTE" ? '#059669' : '#ef4444', fontWeight: 'bold', fontSize: '13px' }}>
+                         {v.validade_cipp}
+                      </span>
                     </td>
-                    <td style={{ padding: '15px' }}>
-                      {v.validade_civ === "CONFORME" && v.validade_cipp === "CONFORME" ? <CheckCircle color="#10b981" /> : <AlertTriangle color="#f59e0b" />}
+                    <td style={{ padding: '15px', textAlign: 'center' }}>
+                      {v.validade_civ !== "PENDENTE" && v.validade_cipp !== "PENDENTE" ? <CheckCircle color="#10b981" size={24}/> : <AlertTriangle color="#f59e0b" size={24}/>}
                     </td>
                   </tr>
                 ))}
@@ -183,9 +210,9 @@ export default function MaximusV11() {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
               {arquivos.map(arq => (
-                <div key={arq.id} style={{ border: '1px solid #e2e8f0', padding: '15px', borderRadius: '12px', textAlign: 'center' }}>
+                <div key={arq.id} style={{ border: '1px solid #e2e8f0', padding: '15px', borderRadius: '15px', textAlign: 'center', background: '#f8fafc' }}>
                   <FileText size={30} color="#6366f1" style={{ marginBottom: '10px' }}/>
-                  <div style={{ fontSize: '11px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis' }}>{arq.nome_arquivo}</div>
+                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{arq.nome_arquivo}</div>
                 </div>
               ))}
             </div>
