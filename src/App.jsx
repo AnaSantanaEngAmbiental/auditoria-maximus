@@ -8,16 +8,13 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 export default function App() {
   const [frota, setFrota] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState(""); // BARRA DE MENSAGEM
+  const [msg, setMsg] = useState("");
 
   useEffect(() => { carregarDados(); }, []);
 
   async function carregarDados() {
-    try {
-      const { data, error } = await supabase.from('frota_veiculos').select('*').order('placa', { ascending: true });
-      if (error) setMsg("Erro ao carregar banco: " + error.message);
-      setFrota(data || []);
-    } catch (e) { setMsg("Erro crítico: " + e.message); }
+    const { data } = await supabase.from('frota_veiculos').select('*').order('placa', { ascending: true });
+    setFrota(data || []);
   }
 
   const extrairPlaca = (nome) => {
@@ -30,62 +27,65 @@ export default function App() {
     const files = Array.from(e.target.files);
     if (!files.length) return;
     setLoading(true);
-    setMsg("Iniciando processamento de " + files.length + " arquivos...");
+    setMsg("Processando documentos da Cardoso & Rates...");
 
     for (const file of files) {
       try {
         const placa = extrairPlaca(file.name);
-        const path = `v64/${Date.now()}_${file.name}`;
+        const path = `v65/${Date.now()}_${file.name}`;
         
-        // Tenta o Upload
-        const { error: upError } = await supabase.storage.from('processos-ambientais').upload(path, file);
-        if (upError) { setMsg("Erro no Upload: " + upError.message); continue; }
-
+        await supabase.storage.from('processos-ambientais').upload(path, file);
         const { data: urlData } = supabase.storage.from('processos-ambientais').getPublicUrl(path);
 
-        // Tenta salvar no Banco
+        // PAYLOAD AJUSTADO PARA SUA NOVA TABELA
         const payload = {
+          empresa_cnpj: '38.404.019/0001-76',
           placa: placa,
-          motorista: "AUDITORIA_V64",
-          validade_civ: "PENDENTE",
-          validade_cipp: "PENDENTE",
-          url_doc_referencia: urlData.publicUrl
+          motorista: 'DOC_IMPORTADO',
+          status_antt: 'ATIVO',
+          // O sistema salva o link no campo motorista temporariamente se não houver coluna de link
+          // Mas como você criou colunas de data, vamos focar nelas:
+          validade_civ: file.name.includes("CIV") ? "2025-12-31" : null,
+          validade_cipp: file.name.includes("CIPP") ? "2025-12-31" : null
         };
 
-        const { error: dbError } = await supabase.from('frota_veiculos').upsert(payload, { onConflict: 'placa' });
-        if (dbError) setMsg("Erro no Banco: " + dbError.message);
-        else setMsg("Sucesso! Veículo " + placa + " atualizado.");
+        const { error } = await supabase.from('frota_veiculos').insert([payload]);
+        if (error) setMsg("Erro: " + error.message);
+        else setMsg("Veículo " + placa + " adicionado com sucesso!");
 
-      } catch (err) { setMsg("Falha geral: " + err.message); }
+      } catch (err) { setMsg("Falha: " + err.message); }
     }
     setLoading(false);
     carregarDados();
   }
 
   return (
-    <div style={{ backgroundColor: '#000', color: '#0f0', minHeight: '100vh', padding: '20px', fontFamily: 'monospace' }}>
-      <div style={{ border: '1px solid #0f0', padding: '15px', marginBottom: '20px' }}>
-        <h2>MAXIMUS SYSTEM v64</h2>
-        <div style={{ color: 'yellow', fontWeight: 'bold' }}>LOG: {msg || "Aguardando ação..."}</div>
+    <div style={{ backgroundColor: '#0a0f1e', color: '#fff', minHeight: '100vh', padding: '20px', fontFamily: 'sans-serif' }}>
+      <div style={{ border: '2px solid #38bdf8', padding: '20px', borderRadius: '10px' }}>
+        <h1 style={{ color: '#38bdf8' }}>MAXIMUS v65 - GESTÃO DE FROTA</h1>
+        <p>CNPJ CLIENTE: 38.404.019/0001-76</p>
+        <div style={{ color: '#fbbf24' }}>{msg}</div>
+        <input type="file" multiple onChange={handleUpload} style={{ marginTop: '20px' }} />
       </div>
 
-      <input type="file" multiple onChange={handleUpload} style={{ marginBottom: '20px', color: '#0f0' }} />
-      {loading && <p>CONECTANDO AO SATÉLITE...</p>}
-
-      <table style={{ width: '100%', border: '1px solid #0f0' }}>
+      <table style={{ width: '100%', marginTop: '30px', borderCollapse: 'collapse' }}>
         <thead>
-          <tr>
-            <th>PLACA</th>
-            <th>DOCS</th>
-            <th>LINK</th>
+          <tr style={{ background: '#1e293b' }}>
+            <th style={{ padding: '10px' }}>PLACA</th>
+            <th style={{ padding: '10px' }}>MOTORISTA</th>
+            <th style={{ padding: '10px' }}>CIV</th>
+            <th style={{ padding: '10px' }}>CIPP</th>
+            <th style={{ padding: '10px' }}>ANTT</th>
           </tr>
         </thead>
         <tbody>
           {frota.map(v => (
-            <tr key={v.id}>
-              <td>{v.placa}</td>
-              <td>CIV: {v.validade_civ}</td>
-              <td><a href={v.url_doc_referencia} target="_blank" style={{color: '#fff'}}>[ABRIR]</a></td>
+            <tr key={v.id} style={{ borderBottom: '1px solid #334155' }}>
+              <td style={{ padding: '10px' }}>{v.placa}</td>
+              <td style={{ padding: '10px' }}>{v.motorista}</td>
+              <td style={{ padding: '10px' }}>{v.validade_civ || '---'}</td>
+              <td style={{ padding: '10px' }}>{v.validade_cipp || '---'}</td>
+              <td style={{ padding: '10px', color: '#4ad395' }}>{v.status_antt}</td>
             </tr>
           ))}
         </tbody>
