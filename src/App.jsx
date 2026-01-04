@@ -63,7 +63,7 @@ export default function MaximusV52() {
       {/* SIDEBAR DARK */}
       <aside style={{ width: '280px', backgroundColor: '#0f172a', color: 'white', padding: '30px', display: 'flex', flexDirection: 'column' }}>
         <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#10b981', marginBottom: '5px' }}>MAXIMUS</h1>
-        <p style={{ fontSize: '10px', color: '#64748b', marginBottom: '40px' }}>CONTROLE DE AUDITORIA V5.2</p>
+        <p style={{ fontSize: '10px', color: '#64748b', marginBottom: '40px' }}>AUDITORIA AMBIENTAL V5.2</p>
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '30px' }}>
           <button onClick={() => setAbaAtiva('dossie')} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: abaAtiva === 'dossie' ? '#1e293b' : 'transparent', color: 'white', cursor: 'pointer', textAlign: 'left', fontWeight: 'bold' }}>
@@ -75,7 +75,7 @@ export default function MaximusV52() {
         </nav>
 
         <div style={{ backgroundColor: '#1e293b', padding: '20px', borderRadius: '15px', marginBottom: '20px' }}>
-          <p style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '10px' }}>STATUS DO DOSSIÊ</p>
+          <p style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '10px' }}>CONFORMIDADE DOSSIÊ</p>
           <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{aprovados} / 13</div>
           <div style={{ height: '6px', backgroundColor: '#334155', borderRadius: '10px', marginTop: '10px', overflow: 'hidden' }}>
             <div style={{ width: `${(aprovados/13)*100}%`, height: '100%', backgroundColor: '#10b981', transition: '0.5s' }} />
@@ -94,16 +94,16 @@ export default function MaximusV52() {
           <div style={{ position: 'relative' }}>
             <Search style={{ position: 'absolute', left: '15px', top: '12px', color: '#94a3b8' }} size={20}/>
             <input 
-              type="text" placeholder="Localizar registro..." value={busca} onChange={e => setBusca(e.target.value)}
+              type="text" placeholder="Localizar no sistema..." value={busca} onChange={e => setBusca(e.target.value)}
               style={{ padding: '12px 15px 12px 45px', borderRadius: '12px', border: '1px solid #e2e8f0', width: '300px' }}
             />
           </div>
           <div style={{ display: 'flex', gap: '15px' }}>
             <button onClick={() => setMostrarRelatorio(true)} style={{ backgroundColor: '#10b981', color: 'white', padding: '12px 25px', borderRadius: '12px', fontWeight: 'bold', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <FileBarChart size={20}/> RELATÓRIO
+              <FileBarChart size={20}/> GERAR RELATÓRIO
             </button>
             <label style={{ backgroundColor: '#4f46e5', color: 'white', padding: '12px 25px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <UploadCloud size={20}/> {loading ? "SUBINDO..." : "CARREGAR"}
+              <UploadCloud size={20}/> {loading ? "CARREGANDO..." : "SUBIR ARQUIVO"}
               <input type="file" multiple onChange={handleUpload} hidden />
             </label>
           </div>
@@ -114,13 +114,13 @@ export default function MaximusV52() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ textAlign: 'left', borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '12px' }}>
-                  <th style={{ padding: '15px' }}>DOCUMENTO</th>
+                  <th style={{ padding: '15px' }}>DOCUMENTO DO PROCESSO</th>
                   <th style={{ padding: '15px' }}>STATUS</th>
-                  <th style={{ padding: '15px', textAlign: 'center' }}>AUDITORIA</th>
+                  <th style={{ padding: '15px', textAlign: 'center' }}>AÇÕES</th>
                 </tr>
               </thead>
               <tbody>
-                {arquivos.filter(a => a.nome_arquivo.includes(busca)).map(arq => (
+                {arquivos.filter(a => a.nome_arquivo.includes(busca.toLowerCase())).map(arq => (
                   <tr key={arq.id} style={{ borderBottom: '1px solid #f8fafc' }}>
                     <td style={{ padding: '15px', fontSize: '14px', fontWeight: '500' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -145,13 +145,12 @@ export default function MaximusV52() {
               </tbody>
             </table>
           ) : (
-            /* NOVA TABELA DE FROTA */
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ textAlign: 'left', borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '12px' }}>
-                  <th style={{ padding: '15px' }}>STATUS</th>
+                  <th style={{ padding: '15px' }}>AUDITORIA</th>
                   <th style={{ padding: '15px' }}>PLACA / MOTORISTA</th>
-                  <th style={{ padding: '15px' }}>VALIDADE CIV</th>
+                  <th style={{ padding: '15px' }}>VENCIMENTO CIV</th>
                   <th style={{ padding: '15px', textAlign: 'center' }}>VÍNCULO PDF</th>
                 </tr>
               </thead>
@@ -163,14 +162,14 @@ export default function MaximusV52() {
                     <tr key={v.id} style={{ borderBottom: '1px solid #f8fafc' }}>
                       <td style={{ padding: '15px' }}>
                         <span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', backgroundColor: vencido ? '#fee2e2' : '#dcfce7', color: vencido ? '#b91c1c' : '#166534' }}>
-                          {vencido ? 'VENCIDO' : 'REGULAR'}
+                          {vencido ? 'BLOQUEADO' : 'LIBERADO'}
                         </span>
                       </td>
                       <td style={{ padding: '15px', fontSize: '13px' }}>
                         <div style={{ fontWeight: 'bold' }}>{v.placa}</div>
                         <div style={{ fontSize: '10px', color: '#94a3b8' }}>{v.motorista}</div>
                       </td>
-                      <td style={{ padding: '15px', fontSize: '13px', color: '#475569' }}>{v.validade_civ || 'N/A'}</td>
+                      <td style={{ padding: '15px', fontSize: '13px', color: '#475569' }}>{v.validade_civ || 'PENDENTE'}</td>
                       <td style={{ padding: '15px', textAlign: 'center' }}>
                         {temDoc ? <CheckCircle size={18} color="#10b981"/> : <XCircle size={18} color="#94a3b8"/>}
                       </td>
@@ -183,22 +182,46 @@ export default function MaximusV52() {
         </div>
       </main>
 
-      {/* RELATÓRIO MODAL */}
+      {/* MODAL DE RELATÓRIO TÉCNICO */}
       {mostrarRelatorio && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div style={{ backgroundColor: 'white', width: '800px', maxHeight: '90vh', overflowY: 'auto', padding: '40px', borderRadius: '12px', position: 'relative' }}>
-            <button onClick={() => setMostrarRelatorio(false)} style={{ position: 'absolute', top: '20px', right: '20px', border: 'none', background: 'none', cursor: 'pointer' }}><X size={24}/></button>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ backgroundColor: 'white', width: '850px', maxHeight: '90vh', overflowY: 'auto', padding: '50px', borderRadius: '15px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+            <button onClick={() => setMostrarRelatorio(false)} style={{ position: 'absolute', top: '25px', right: '25px', border: 'none', background: 'none', cursor: 'pointer' }}><X size={28}/></button>
             <div id="print-area">
-              <h2 style={{ borderBottom: '2px solid #0f172a', paddingBottom: '10px', marginBottom: '20px' }}>Dossiê e Auditoria de Frota</h2>
-              <p><strong>Empresa:</strong> Caeli Transportes | <strong>CNPJ:</strong> 38.404.019/0001-76</p>
-              <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px', fontSize: '12px' }}>
-                <thead><tr style={{ backgroundColor: '#f8fafc' }}><th style={{ border: '1px solid #e2e8f0', padding: '8px' }}>Item</th><th style={{ border: '1px solid #e2e8f0', padding: '8px' }}>Status</th></tr></thead>
+              <div style={{ borderBottom: '3px solid #0f172a', paddingBottom: '15px', marginBottom: '25px' }}>
+                <h2 style={{ fontSize: '22px', fontWeight: 'bold', textTransform: 'uppercase' }}>Relatório de Conformidade Ambiental (CAELI)</h2>
+                <p style={{ fontSize: '12px', color: '#64748b' }}>SISTEMA MAXIMUS - AUDITORIA DE PROCESSO SEMAS</p>
+              </div>
+              <div style={{ marginBottom: '30px', fontSize: '14px', lineHeight: '1.8' }}>
+                <p><strong>Empresa:</strong> Cardoso & Rates Transporte de Carga Ltda</p>
+                <p><strong>CNPJ:</strong> 38.404.019/0001-76 </p>
+                <p><strong>Emissão:</strong> {new Date().toLocaleDateString()}</p>
+                <p><strong>Conformidade Dossiê:</strong> {aprovados}/13 documentos validados.</p>
+              </div>
+
+              <h3 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '10px', color: '#1e293b' }}>ITENS DE FROTA AUDITADOS:</h3>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8fafc', textAlign: 'left' }}>
+                    <th style={{ border: '1px solid #e2e8f0', padding: '10px' }}>VEÍCULO</th>
+                    <th style={{ border: '1px solid #e2e8f0', padding: '10px' }}>MOTORISTA</th>
+                    <th style={{ border: '1px solid #e2e8f0', padding: '10px' }}>VALIDADE CIV</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {arquivos.map(a => (<tr key={a.id}><td style={{ border: '1px solid #e2e8f0', padding: '8px' }}>{a.nome_arquivo}</td><td style={{ border: '1px solid #e2e8f0', padding: '8px' }}>{a.status}</td></tr>))}
+                  {frota.map(v => (
+                    <tr key={v.id}>
+                      <td style={{ border: '1px solid #e2e8f0', padding: '10px' }}>{v.placa}</td>
+                      <td style={{ border: '1px solid #e2e8f0', padding: '10px' }}>{v.motorista} </td>
+                      <td style={{ border: '1px solid #e2e8f0', padding: '10px', color: new Date(v.validade_civ) < new Date() ? [cite_start]'red' : 'inherit' }}>{v.validade_civ} </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
-            <button onClick={() => window.print()} style={{ width: '100%', marginTop: '30px', padding: '15px', backgroundColor: '#0f172a', color: 'white', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>IMPRIMIR PDF</button>
+            <button onClick={() => window.print()} style={{ width: '100%', marginTop: '40px', padding: '15px', backgroundColor: '#0f172a', color: 'white', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', gap: '10px' }}>
+              <Printer size={20}/> IMPRIMIR PARA PDF (SEMAS)
+            </button>
           </div>
         </div>
       )}
