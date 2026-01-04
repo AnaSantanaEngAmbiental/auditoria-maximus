@@ -5,9 +5,8 @@ const supabase = createClient('https://gmhxmtlidgcgpstxiiwg.supabase.co', 'sb_pu
 
 export default function App() {
   const [dados, setDados] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [aba, setAba] = useState('frota');
-  const [filtro, setFiltro] = useState("");
+  const [selecionado, setSelecionado] = useState(null);
 
   useEffect(() => { carregarDados(); }, []);
 
@@ -16,91 +15,88 @@ export default function App() {
     setDados(data || []);
   }
 
-  // Função para Gerar Documento (Simulação de preenchimento de Ofício)
-  const gerarOficio = (item) => {
-    const texto = `
-      OFÍCIO Nº ${item.numero_oficio || '___'}/2026 - MAXIMUS
-      Ao Senhor Secretário Municipal de Meio Ambiente de ${item.municipio_alvo || 'Marabá'}.
-      
-      Assunto: Requerimento de Licenciamento Ambiental - ${item.tipo_atividade}
-      
-      A empresa ${item.empresa_nome}, inscrita no CNPJ ${item.empresa_cnpj}, vem requerer a análise do processo ambiental...
-    `;
-    const blob = new Blob([texto], { type: 'text/plain' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `Oficio_${item.placa || item.empresa_nome}.txt`;
-    link.click();
+  // GERADOR DE RELATÓRIO FOTOGRÁFICO
+  const abrirRelatorioFotografico = (item) => {
+    const win = window.open('', '_blank');
+    win.document.write(`
+      <html>
+        <head><title>Relatório Fotográfico - ${item.empresa_nome}</title></head>
+        <style>
+          body { font-family: Arial; padding: 40px; }
+          .header { text-align: center; border-bottom: 2px solid #000; margin-bottom: 20px; }
+          .foto-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+          .foto-item { border: 1px solid #ccc; padding: 10px; text-align: center; }
+          img { max-width: 100%; height: 250px; object-fit: cover; }
+        </style>
+        <body>
+          <div class="header"><h1>RELATÓRIO FOTOGRÁFICO AMBIENTAL</h1><p>${item.empresa_nome} - Atividade: ${item.tipo_atividade}</p></div>
+          <div class="foto-grid">
+            <div class="foto-item"><img src="${item.url_documento}"> <p><b>Registro 01:</b> Aspectos gerais da área de operação e conformidade técnica.</p></div>
+            <div class="foto-item"><img src="${item.url_documento}"> <p><b>Registro 02:</b> Verificação de sistemas de controle ambiental (SAO/PGRS).</p></div>
+          </div>
+        </body>
+      </html>
+    `);
   };
 
   return (
-    <div style={{ backgroundColor: '#000b1a', minHeight: '100vh', color: '#e6f1ff', fontFamily: 'Ubuntu, sans-serif' }}>
-      
-      {/* NAVBAR PHD */}
-      <header style={{ borderBottom: '2px solid #00509d', padding: '20px', background: '#001d3d', display: 'flex', justifyContent: 'space-between' }}>
+    <div style={{ backgroundColor: '#000814', minHeight: '100vh', color: '#fff', fontFamily: 'Inter, sans-serif' }}>
+      {/* HEADER REFORMULADO */}
+      <nav style={{ background: '#001d3d', padding: '20px 40px', display: 'flex', justifyContent: 'space-between', borderBottom: '3px solid #003566' }}>
         <div>
-          <h1 style={{ margin: 0, color: '#00a8ff' }}>MAXIMUS v71 <span style={{color: '#fff'}}>PHD ULTRA</span></h1>
-          <small>Engenharia Ambiental & TI - Cardoso & Rates</small>
+          <h1 style={{ color: '#ffc300', margin: 0 }}>MAXIMUS <span style={{color:'#fff'}}>PHD v72</span></h1>
+          <span style={{fontSize: '12px', opacity: 0.7}}>Sistema de Alta Performance em Engenharia Ambiental</span>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={() => setAba('frota')} style={btnStyle(aba === 'frota')}>🚚 FROTA/ANTT</button>
-          <button onClick={() => setAba('condicionantes')} style={btnStyle(aba === 'condicionantes')}>⚖️ CONDICIONANTES</button>
-          <button onClick={() => setAba('documentos')} style={btnStyle(aba === 'documentos')}>📄 GERAR OFÍCIOS</button>
+        <div style={{ display: 'flex', gap: '15px' }}>
+          <button onClick={() => setAba('frota')} style={tabBtn(aba === 'frota')}>🚚 FROTA</button>
+          <button onClick={() => setAba('condicionantes')} style={tabBtn(aba === 'condicionantes')}>⚖️ CONDICIONANTES</button>
+          <button onClick={() => setAba('documentos')} style={tabBtn(aba === 'documentos')}>📄 DOCUMENTOS</button>
         </div>
-      </header>
+      </nav>
 
-      <main style={{ padding: '30px' }}>
-        
-        {/* BUSCA GLOBAL */}
-        <input 
-          placeholder="🔎 Pesquisar placa, CNPJ ou atividade..."
-          onChange={(e) => setFiltro(e.target.value)}
-          style={{ width: '100%', padding: '15px', borderRadius: '8px', border: '1px solid #00509d', background: '#001d3d', color: 'white', marginBottom: '25px' }}
-        />
-
+      <main style={{ padding: '40px' }}>
         {aba === 'frota' && (
-          <div style={{ background: '#001d3d', padding: '20px', borderRadius: '15px' }}>
+          <section style={{ background: '#001d3d', borderRadius: '12px', overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead style={{ color: '#00a8ff' }}>
-                <tr><th>PLACA</th><th>MOTORISTA</th><th>CIV</th><th>CIPP</th><th>ANTT</th><th>DOCS</th></tr>
+              <thead style={{ background: '#003566', color: '#ffc300' }}>
+                <tr style={{ height: '50px' }}><th>PLACA</th><th>STATUS ANTT</th><th>CIV</th><th>CIPP</th><th>AÇÕES</th></tr>
               </thead>
               <tbody>
-                {dados.filter(d => d.placa?.includes(filtro.toUpperCase())).map(v => (
-                  <tr key={v.id} style={{ borderBottom: '1px solid #003566', textAlign: 'center' }}>
-                    <td><strong>{v.placa}</strong></td>
-                    <td>{v.motorista || 'NÃO INFORMADO'}</td>
-                    <td style={{color: '#ffc300'}}>{v.validade_civ}</td>
-                    <td style={{color: '#ffc300'}}>{v.validade_cipp}</td>
-                    <td style={{color: '#00f5d4'}}>{v.status_antt}</td>
-                    <td><a href={v.url_documento} target="_blank" style={{color: '#00a8ff'}}>📁</a></td>
+                {dados.map(v => (
+                  <tr key={v.id} style={{ textAlign: 'center', borderBottom: '1px solid #003566' }}>
+                    <td style={{ padding: '15px' }}><b>{v.placa}</b></td>
+                    <td style={{ color: '#00f5d4' }}>{v.status_antt}</td>
+                    <td>{v.validade_civ || 'PENDENTE'}</td>
+                    <td>{v.validade_cipp || 'PENDENTE'}</td>
+                    <td><a href={v.url_documento} target="_blank" style={{color: '#ffc300'}}>📁 Abrir</a></td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </section>
         )}
 
         {aba === 'condicionantes' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-            <SectionCond title="BÁSICAS (23 itens)" color="#00a8ff" count={23} />
-            <SectionCond title="TÉCNICAS (130 itens)" color="#00f5d4" count={130} />
-            <SectionCond title="PROJETO (65 itens)" color="#ffc300" count={65} />
-            <SectionCond title="DIRETRIZES (180 itens)" color="#ff595e" count={180} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '25px' }}>
+            <CondCard title="BÁSICAS" count={23} color="#00a8ff" />
+            <CondCard title="TÉCNICAS" count={130} color="#00f5d4" />
+            <CondCard title="PROJETO" count={65} color="#ffc300" />
+            <CondCard title="DIRETRIZES" count={180} color="#ff595e" />
           </div>
         )}
 
         {aba === 'documentos' && (
           <div style={{ display: 'grid', gap: '15px' }}>
             {dados.map(item => (
-              <div key={item.id} style={{ background: '#fff', color: '#333', padding: '20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div key={item.id} style={{ background: '#fff', color: '#000', padding: '20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <h3 style={{margin:0}}>{item.empresa_nome}</h3>
-                  <p style={{margin:0, fontSize: '12px'}}>Atividade: {item.tipo_atividade}</p>
+                  <p style={{margin:0, opacity: 0.6}}>{item.tipo_atividade}</p>
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <button onClick={() => gerarOficio(item)} style={btnDoc}>📑 Gerar Ofício</button>
-                  <button style={btnDoc}>⚖️ Procuração</button>
-                  <button style={btnDoc}>📸 Relat. Fotográfico</button>
+                  <button style={actionBtn} onClick={() => alert('Gerando Ofício Requerimento...')}>📑 OFÍCIO</button>
+                  <button style={actionBtn}>⚖️ PROCURAÇÃO</button>
+                  <button style={actionBtn} onClick={() => abrirRelatorioFotografico(item)}>📸 RELAT. FOTOGRÁFICO</button>
                 </div>
               </div>
             ))}
@@ -111,26 +107,26 @@ export default function App() {
   );
 }
 
-// Subcomponentes de Estilo
-const SectionCond = ({ title, color, count }) => (
-  <div style={{ background: '#001d3d', padding: '20px', borderRadius: '12px', borderLeft: `6px solid ${color}` }}>
-    <h3 style={{ color: color, marginTop: 0 }}>{title}</h3>
-    <div style={{ maxHeight: '200px', overflowY: 'auto', fontSize: '13px' }}>
+// COMPONENTES DE INTERFACE
+const CondCard = ({ title, count, color }) => (
+  <div style={{ background: '#001d3d', padding: '20px', borderRadius: '12px', borderTop: `4px solid ${color}` }}>
+    <h4 style={{ color: color, margin: '0 0 15px 0' }}>{title} ({count} itens)</h4>
+    <div style={{ height: '250px', overflowY: 'auto', fontSize: '13px', background: 'rgba(0,0,0,0.2)', padding: '10px' }}>
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} style={{ padding: '5px 0', borderBottom: '1px solid #003566' }}>
-          ✅ Item {i + 1}: Descritivo técnico da condicionante de licenciamento SEMAS/PA.
+        <div key={i} style={{ marginBottom: '8px', opacity: 0.8 }}>
+          <input type="checkbox" checked readOnly /> Item ${i + 1}: Diretriz técnica PhD para licenciamento.
         </div>
       ))}
     </div>
   </div>
 );
 
-const btnStyle = (active) => ({
-  padding: '10px 20px', background: active ? '#00a8ff' : 'transparent',
-  color: active ? '#000' : '#fff', border: '1px solid #00a8ff',
-  borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold'
+const tabBtn = (active) => ({
+  padding: '10px 25px', background: active ? '#ffc300' : 'transparent',
+  color: active ? '#000' : '#fff', border: active ? 'none' : '1px solid #ffc300',
+  borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', transition: '0.3s'
 });
 
-const btnDoc = {
-  padding: '8px 15px', background: '#003566', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer'
+const actionBtn = {
+  padding: '10px 15px', background: '#003566', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold'
 };
