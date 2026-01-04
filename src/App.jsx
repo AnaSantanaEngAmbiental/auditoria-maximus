@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
+// Configurações do Supabase
 const SUPABASE_URL = 'https://gmhxmtlidgcgpstxiiwg.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'; 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -10,13 +11,18 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
+  // Carrega os dados assim que abre o site
   useEffect(() => { carregarDados(); }, []);
 
   async function carregarDados() {
-    const { data } = await supabase.from('frota_veiculos').select('*').order('placa', { ascending: true });
-    setFrota(data || []);
+    try {
+      const { data, error } = await supabase.from('frota_veiculos').select('*').order('placa', { ascending: true });
+      if (error) throw error;
+      setFrota(data || []);
+    } catch (e) { console.error(e); }
   }
 
+  // Função para identificar a placa no nome do arquivo
   const extrairPlaca = (nome) => {
     const limpo = nome.toUpperCase().replace(/[^A-Z0-9]/g, '');
     const m = limpo.match(/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/) || limpo.match(/[A-Z]{3}[0-9]{4}/);
@@ -27,69 +33,79 @@ export default function App() {
     const files = Array.from(e.target.files);
     if (!files.length) return;
     setLoading(true);
-    setMsg("Processando documentos da Cardoso & Rates...");
+    setMsg("Processando " + files.length + " arquivos...");
 
     for (const file of files) {
       try {
         const placa = extrairPlaca(file.name);
-        const path = `v65/${Date.now()}_${file.name}`;
+        const nomeNoStorage = `v66/${Date.now()}_${file.name}`;
         
-        await supabase.storage.from('processos-ambientais').upload(path, file);
-        const { data: urlData } = supabase.storage.from('processos-ambientais').getPublicUrl(path);
+        // 1. Envia o arquivo para o Storage
+        const { error: upError } = await supabase.storage.from('processos-ambientais').upload(nomeNoStorage, file);
+        if (upError) throw upError;
 
-        // PAYLOAD AJUSTADO PARA SUA NOVA TABELA
+        // 2. Pega o link público do arquivo
+        const { data: urlData } = supabase.storage.from('processos-ambientais').getPublicUrl(nomeNoStorage);
+
+        // 3. Salva ou Atualiza na tabela (UPSERT)
         const payload = {
-          empresa_cnpj: '38.404.019/0001-76',
+          empresa_cnpj: '38.404.019/0001-76', // CNPJ da Cardoso & Rates
           placa: placa,
-          motorista: 'DOC_IMPORTADO',
+          motorista: 'IMPORTADO_AUTO',
           status_antt: 'ATIVO',
-          // O sistema salva o link no campo motorista temporariamente se não houver coluna de link
-          // Mas como você criou colunas de data, vamos focar nelas:
-          validade_civ: file.name.includes("CIV") ? "2025-12-31" : null,
-          validade_cipp: file.name.includes("CIPP") ? "2025-12-31" : null
+          url_doc_referencia: urlData.publicUrl
         };
 
-        const { error } = await supabase.from('frota_veiculos').insert([payload]);
-        if (error) setMsg("Erro: " + error.message);
-        else setMsg("Veículo " + placa + " adicionado com sucesso!");
+        const { error: dbError } = await supabase.from('frota_veiculos').upsert(payload, { onConflict: 'placa' });
+        if (dbError) throw dbError;
 
-      } catch (err) { setMsg("Falha: " + err.message); }
+        setMsg("Veículo " + placa + " processado com sucesso!");
+      } catch (err) { 
+        setMsg("Erro no arquivo " + file.name + ": " + err.message);
+        console.error(err);
+      }
     }
     setLoading(false);
     carregarDados();
   }
 
   return (
-    <div style={{ backgroundColor: '#0a0f1e', color: '#fff', minHeight: '100vh', padding: '20px', fontFamily: 'sans-serif' }}>
-      <div style={{ border: '2px solid #38bdf8', padding: '20px', borderRadius: '10px' }}>
-        <h1 style={{ color: '#38bdf8' }}>MAXIMUS v65 - GESTÃO DE FROTA</h1>
-        <p>CNPJ CLIENTE: 38.404.019/0001-76</p>
-        <div style={{ color: '#fbbf24' }}>{msg}</div>
-        <input type="file" multiple onChange={handleUpload} style={{ marginTop: '20px' }} />
-      </div>
+    <div style={{ backgroundColor: '#0f172a', color: '#f8fafc', minHeight: '100vh', padding: '20px', fontFamily: 'sans-serif' }}>
+      <header style={{ background: '#1e293b', padding: '25px', borderRadius: '15px', border: '1px solid #38bdf8', marginBottom: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>
+        <h1 style={{ margin: 0, color: '#38bdf8', fontSize: '24px' }}>MAXIMUS v66 - AUDITORIA</h1>
+        <p style={{ color: '#94a3b8', margin: '5px 0' }}>CLIENTE: CARDOSO & RATES | CNPJ: 38.404.019/0001-76</p>
+        
+        <div style={{ background: '#000', padding: '10px', borderRadius: '8px', color: '#fbbf24', marginTop: '15px', border: '1px solid #334155' }}>
+          <strong>STATUS:</strong> {msg || "Aguardando novos arquivos para processar..."}
+        </div>
+        
+        <div style={{ marginTop: '20px' }}>
+          <label style={{ backgroundColor: '#38bdf8', color: '#0f172a', padding: '12px 25px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'inline-block' }}>
+            {loading ? "CARREGANDO..." : "ESCOLHER ARQUIVOS"}
+            <input type="file" multiple onChange={handleUpload} hidden />
+          </label>
+        </div>
+      </header>
 
-      <table style={{ width: '100%', marginTop: '30px', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ background: '#1e293b' }}>
-            <th style={{ padding: '10px' }}>PLACA</th>
-            <th style={{ padding: '10px' }}>MOTORISTA</th>
-            <th style={{ padding: '10px' }}>CIV</th>
-            <th style={{ padding: '10px' }}>CIPP</th>
-            <th style={{ padding: '10px' }}>ANTT</th>
-          </tr>
-        </thead>
-        <tbody>
-          {frota.map(v => (
-            <tr key={v.id} style={{ borderBottom: '1px solid #334155' }}>
-              <td style={{ padding: '10px' }}>{v.placa}</td>
-              <td style={{ padding: '10px' }}>{v.motorista}</td>
-              <td style={{ padding: '10px' }}>{v.validade_civ || '---'}</td>
-              <td style={{ padding: '10px' }}>{v.validade_cipp || '---'}</td>
-              <td style={{ padding: '10px', color: '#4ad395' }}>{v.status_antt}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+        {frota.map(v => (
+          <div key={v.id} style={{ background: '#1e293b', padding: '20px', borderRadius: '12px', borderLeft: '6px solid #38bdf8', transition: '0.3s' }}>
+            <h2 style={{ margin: '0 0 10px 0', color: '#fff', letterSpacing: '1px' }}>{v.placa}</h2>
+            <div style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '15px' }}>
+              <p style={{ margin: '4px 0' }}><strong>ANTT:</strong> <span style={{color: '#4ade80'}}>{v.status_antt}</span></p>
+              <p style={{ margin: '4px 0' }}><strong>CIV:</strong> {v.validade_civ || 'PENDENTE'}</p>
+              <p style={{ margin: '4px 0' }}><strong>CIPP:</strong> {v.validade_cipp || 'PENDENTE'}</p>
+            </div>
+            {v.url_doc_referencia ? (
+              <a href={v.url_doc_referencia} target="_blank" rel="noreferrer" style={{ display: 'block', textAlign: 'center', background: '#38bdf8', color: '#0f172a', padding: '10px', borderRadius: '6px', fontWeight: 'bold', textDecoration: 'none' }}>
+                ABRIR DOCUMENTO
+              </a>
+            ) : (
+              <span style={{ color: '#64748b', fontSize: '12px' }}>Sem documento anexo</span>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
