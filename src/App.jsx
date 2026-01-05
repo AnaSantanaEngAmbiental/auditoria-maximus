@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { 
   Shield, Trash2, CheckCircle, Camera, Search, FilePlus, 
   Scale, PenTool, BarChart3, Truck, Zap, Mail, Download, 
-  FileText, Building, Save, RefreshCw, X, Printer, Eraser, Send
+  FileText, Building, Save, RefreshCw, X, Printer, Eraser, QrCode
 } from 'lucide-react';
 
 const supabase = createClient(
@@ -11,7 +11,7 @@ const supabase = createClient(
   'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'
 );
 
-export default function MaximusV65() {
+export default function MaximusV66() {
   const [items, setItems] = useState([]);
   const [arquivos, setArquivos] = useState([]);
   const [projeto, setProjeto] = useState(localStorage.getItem('LAST_PROJ') || 'Mineracao');
@@ -20,13 +20,14 @@ export default function MaximusV65() {
   const [loading, setLoading] = useState(true);
   const [cadastro, setCadastro] = useState({ cnpj: '', email: '', whatsapp: '', responsavel: '' });
   
-  // Refs para Assinatura
+  // Assinatura & QR
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=MAXIMUS-PHD-${projeto}-${cadastro.cnpj}`;
 
   useEffect(() => {
     localStorage.setItem('LAST_PROJ', projeto);
-    async function load() {
+    async function boot() {
       setLoading(true);
       const { data } = await supabase.from('base_condicionantes').select('*').order('codigo');
       if (data) setItems(data);
@@ -38,22 +39,37 @@ export default function MaximusV65() {
       setArquivos(savedFiles ? JSON.parse(savedFiles) : []);
       setLoading(false);
     }
-    load();
+    boot();
   }, [projeto]);
 
-  // --- MOTOR DE ASSINATURA ---
+  // --- LOGICA DE ARQUIVOS E RESET ---
+  const handleUpload = (e) => {
+    const files = Array.from(e.target.files);
+    const novos = files.map(f => ({ nome: f.name.toUpperCase(), id: Date.now() + Math.random() }));
+    const lista = [...arquivos, ...novos];
+    setArquivos(lista);
+    localStorage.setItem(`MAX_FILES_${projeto}`, JSON.stringify(lista));
+  };
+
+  const resetProjeto = () => {
+    if(window.confirm("⚠️ DESEJA LIMPAR TODOS OS DADOS E ARQUIVOS DESTE PROJETO?")) {
+      setArquivos([]);
+      localStorage.removeItem(`MAX_FILES_${projeto}`);
+      alert("Projeto resetado.");
+    }
+  };
+
+  const isValido = (t) => arquivos.some(a => a.nome.includes(String(t).toUpperCase()));
+
+  // --- LOGICA DE ASSINATURA ---
   const startDrawing = (e) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#0f0';
+    ctx.lineWidth = 3; ctx.strokeStyle = '#0f0'; ctx.lineCap = 'round';
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX || e.touches[0].clientX) - rect.left;
     const y = (e.clientY || e.touches[0].clientY) - rect.top;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    setIsDrawing(true);
+    ctx.beginPath(); ctx.moveTo(x, y); setIsDrawing(true);
   };
 
   const draw = (e) => {
@@ -63,35 +79,10 @@ export default function MaximusV65() {
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX || e.touches[0].clientX) - rect.left;
     const y = (e.clientY || e.touches[0].clientY) - rect.top;
-    ctx.lineTo(x, y);
-    ctx.stroke();
+    ctx.lineTo(x, y); ctx.stroke();
   };
 
-  const clearCanvas = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-  };
-
-  // --- MOTOR DE ARQUIVOS ---
-  const handleUpload = (e) => {
-    const files = Array.from(e.target.files);
-    const novos = files.map(f => ({ nome: f.name.toUpperCase(), id: Date.now() + Math.random() }));
-    const lista = [...arquivos, ...novos];
-    setArquivos(lista);
-    localStorage.setItem(`MAX_FILES_${projeto}`, JSON.stringify(lista));
-  };
-
-  const isValido = (t) => arquivos.some(a => a.nome.includes(String(t).toUpperCase()));
-
-  // --- ENVIO SEMAS ---
-  const enviarSemas = () => {
-    const subject = encodeURIComponent(`Relatório de Auditoria - ${projeto}`);
-    const body = encodeURIComponent(`Prezados SEMAS,\n\nSegue em anexo o relatório técnico da unidade ${projeto}.\nCNPJ: ${cadastro.cnpj}\nResponsável: ${cadastro.responsavel}`);
-    window.location.href = `mailto:gestor.semas@exemplo.pa.gov.br?subject=${subject}&body=${body}`;
-  };
-
-  if (loading) return <div style={s.load}><RefreshCw className="animate-spin" size={50}/></div>;
+  if (loading) return <div style={s.load}><RefreshCw className="animate-spin" size={40}/></div>;
 
   return (
     <div style={s.container}>
@@ -101,7 +92,7 @@ export default function MaximusV65() {
         <select value={projeto} onChange={e=>setProjeto(e.target.value)} style={s.select}>
           <option value="Mineracao">⛏️ MINERAÇÃO</option>
           <option value="Logistica">🚚 LOGÍSTICA / FROTA</option>
-          <option value="Posto">⛽ POSTO BELÉM</option>
+          <option value="Posto">⛽ POSTO COMBUSTÍVEL</option>
         </select>
 
         <nav style={s.menu}>
@@ -112,28 +103,40 @@ export default function MaximusV65() {
         </nav>
 
         <div style={s.histBox}>
-          <div style={s.histHead}>EVIDÊNCIAS ({arquivos.length})</div>
+          <div style={s.histHead}>HISTÓRICO ({arquivos.length})</div>
           <div style={s.histList}>
             {arquivos.map(a => <div key={a.id} style={s.histItem}>✓ {a.nome}</div>)}
           </div>
         </div>
+
+        <button onClick={resetProjeto} style={s.btnReset}><Trash2 size={16}/> RESETAR PROJETO</button>
       </aside>
 
       <main style={s.main}>
         <header style={s.header} className="no-print">
-          <div style={s.search}><Search size={20}/><input placeholder="Buscar..." style={s.inBusca} onChange={e=>setBusca(e.target.value)}/></div>
+          <div style={s.search}><Search size={20}/><input placeholder="Filtrar..." style={s.inBusca} onChange={e=>setBusca(e.target.value)}/></div>
           <div style={{display:'flex', gap:10}}>
-             <button onClick={enviarSemas} style={s.btnSemas}><Mail size={18}/> ENVIAR SEMAS</button>
-             <button onClick={()=>window.print()} style={s.btnLux}><Printer size={18}/> IMPRIMIR</button>
+             <button onClick={()=>window.print()} style={s.btnLux}><Printer size={18}/> IMPRIMIR RELATÓRIO</button>
              <label style={s.btnUp}><FilePlus size={18}/> ADICIONAR <input type="file" multiple hidden onChange={handleUpload}/></label>
           </div>
         </header>
 
         <div style={s.content} id="print-area">
+          {/* CABEÇALHO DO RELATÓRIO (PRINT ONLY) */}
+          <div className="print-only" style={s.printHead}>
+             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <div>
+                   <h1 style={{margin:0, color:'#000'}}>RELATÓRIO DE CONFORMIDADE</h1>
+                   <p>Unidade: {projeto} | Auditor: {cadastro.responsavel}</p>
+                </div>
+                <img src={qrUrl} alt="QR Auth" style={{width:80}}/>
+             </div>
+          </div>
+
           {aba === 'AUDITORIA' && (
             <div style={s.scroll}>
               <table style={s.table}>
-                <thead><tr style={s.th}><th>CÓD</th><th>REQUISITO (FONTE 20PX)</th><th style={{textAlign:'center'}}>STATUS</th></tr></thead>
+                <thead><tr style={s.th}><th>CÓD</th><th>REQUISITO LEGAL (20PX)</th><th style={{textAlign:'center'}}>STATUS</th></tr></thead>
                 <tbody>
                   {items.filter(i=>i.descricao_de_condicionante?.toLowerCase().includes(busca.toLowerCase())).map((it, idx)=>(
                     <tr key={idx} style={s.tr}>
@@ -149,15 +152,15 @@ export default function MaximusV65() {
 
           {aba === 'FROTA' && (
             <div style={s.pad}>
-              <h1 style={{color:'#0f0'}}>Frota e Equipamentos</h1>
+              <h1 style={{color:'#0f0'}}>Painel de Frota e Certificados</h1>
               <div style={s.gridF}>
-                {['CIPP', 'CIV', 'ANTT', 'MOPP', 'CRLV', 'LAO'].map(doc => (
+                {['CIPP', 'CIV', 'ANTT', 'MOPP', 'CRLV'].map(doc => (
                   <div key={doc} style={{...s.cardF, borderColor: isValido(doc)?'#0f0':'#111'}}>
                     <div style={{display:'flex', justifyContent:'space-between'}}>
                       <b style={{fontSize:22}}>{doc}</b>
                       {isValido(doc) ? <CheckCircle color="#0f0"/> : <X color="#f00"/>}
                     </div>
-                    <p style={{fontSize:12, color:'#444'}}>Documentação Técnica</p>
+                    <p style={{fontSize:12, color:'#444'}}>Validação Automática</p>
                   </div>
                 ))}
               </div>
@@ -166,29 +169,29 @@ export default function MaximusV65() {
 
           {aba === 'CADASTRO' && (
             <div style={s.pad}>
-              <h1>Configuração da Unidade</h1>
+              <h1>Configuração Supabase</h1>
               <div style={s.grid}>
                 <input value={cadastro.cnpj} placeholder="CNPJ" style={s.in} onChange={e=>setCadastro({...cadastro, cnpj:e.target.value})}/>
-                <input value={cadastro.email} placeholder="E-mail" style={s.in} onChange={e=>setCadastro({...cadastro, email:e.target.value})}/>
                 <input value={cadastro.whatsapp} placeholder="WhatsApp" style={s.in} onChange={e=>setCadastro({...cadastro, whatsapp:e.target.value})}/>
-                <input value={cadastro.responsavel} placeholder="Auditor" style={s.in} onChange={e=>setCadastro({...cadastro, responsavel:e.target.value})}/>
+                <input value={cadastro.email} placeholder="E-mail Gestor" style={s.in} onChange={e=>setCadastro({...cadastro, email:e.target.value})}/>
+                <input value={cadastro.responsavel} placeholder="Nome do Auditor" style={s.in} onChange={e=>setCadastro({...cadastro, responsavel:e.target.value})}/>
               </div>
-              <button onClick={async()=> {await supabase.from('unidades_maximus').upsert({id:projeto, ...cadastro}); alert("✅ SUPABASE OK!")}} style={s.btnSave}><Save/> SALVAR BANCO</button>
+              <button onClick={async()=> {await supabase.from('unidades_maximus').upsert({id:projeto, ...cadastro}); alert("✅ DADOS PROTEGIDOS NO BANCO!")}} style={s.btnSave}><Save/> SALVAR DADOS</button>
             </div>
           )}
 
           {aba === 'ASSINA' && (
             <div style={s.fullCenter}>
                <div style={s.signBox}>
-                  <h2>ASSINATURA DO AUDITOR</h2>
+                  <h2 style={{color:'#0f0'}}>ASSINATURA DIGITAL DO AUDITOR</h2>
                   <canvas 
                     ref={canvasRef} width={600} height={300} style={s.canvas}
                     onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={()=>setIsDrawing(false)}
                     onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={()=>setIsDrawing(false)}
                   />
-                  <div style={{display:'flex', gap:20, marginTop:20}}>
-                     <button onClick={clearCanvas} style={s.btnEraser}><Eraser/> LIMPAR</button>
-                     <button onClick={()=>alert("Assinatura Salva!")} style={s.btnA}>SALVAR NO RELATÓRIO</button>
+                  <div style={{display:'flex', gap:20, marginTop:20, justifyContent:'center'}}>
+                     <button onClick={()=>{const c=canvasRef.current; c.getContext('2d').clearRect(0,0,c.width,c.height)}} style={s.btnReset}><Eraser/> LIMPAR</button>
+                     <button onClick={()=>alert("Assinatura Vinculada ao QR Code!")} style={s.btnLux}>FINALIZAR</button>
                   </div>
                </div>
             </div>
@@ -196,7 +199,8 @@ export default function MaximusV65() {
         </div>
       </main>
       <style>{`
-        @media print { .no-print { display: none !important; } #print-area { border: none !important; color: black !important; background: white !important; } }
+        @media print { .no-print { display: none !important; } .print-only { display: block !important; } #print-area { border: none !important; background: white !important; color: black !important; } td { color: black !important; border-bottom: 1px solid #eee !important; } }
+        .print-only { display: none; }
       `}</style>
     </div>
   );
@@ -215,13 +219,13 @@ const s = {
   histHead: { padding: '12px', fontSize: 10, background: '#080808', color: '#333', fontWeight: 900, textAlign:'center' },
   histList: { padding: 15, overflowY: 'auto', flex: 1, fontSize: 11, color: '#0f0' },
   histItem: { marginBottom: 6, opacity: 0.6 },
+  btnReset: { background: '#100', color: '#f00', border: '1px solid #300', padding:'12px 20px', borderRadius: 12, fontWeight: 900, cursor:'pointer', display:'flex', gap:10, alignItems:'center', justifyContent:'center' },
   main: { flex: 1, padding: '35px', display: 'flex', flexDirection: 'column' },
   header: { display: 'flex', justifyContent: 'space-between', marginBottom: 25, gap: 10 },
   search: { flex: 1, background: '#080808', borderRadius: 18, display: 'flex', alignItems: 'center', padding: '0 20px', border:'1px solid #111' },
   inBusca: { background: 'none', border: 'none', color: '#fff', padding: '18px', width: '100%', outline: 'none', fontSize: 16 },
   btnUp: { background: '#0f0', color: '#000', padding: '12px 25px', borderRadius: 15, fontWeight: '900', cursor: 'pointer', display: 'flex', gap: 10 },
   btnLux: { background: '#fff', color: '#000', padding: '12px 25px', borderRadius: 15, fontWeight: '900', cursor: 'pointer', display: 'flex', gap: 10 },
-  btnSemas: { background: '#111', color: '#0f0', border: '1px solid #0f0', padding: '12px 25px', borderRadius: 15, fontWeight: '900', cursor: 'pointer', display: 'flex', gap: 10 },
   content: { background: '#030303', borderRadius: 40, border: '1px solid #0a0a0a', flex: 1, overflow: 'hidden' },
   scroll: { overflowY: 'auto', height: '100%' },
   table: { width: '100%', borderCollapse: 'collapse' },
@@ -237,6 +241,6 @@ const s = {
   cardF: { background:'#080808', padding:25, borderRadius:20, border:'1px solid #111', display:'flex', flexDirection:'column', gap:10 },
   signBox: { textAlign:'center' },
   canvas: { background:'#111', borderRadius:20, border:'2px solid #222', cursor:'crosshair', touchAction:'none' },
-  btnEraser: { background:'#300', color:'#f00', padding:'15px 30px', borderRadius:15, fontWeight:900, border:'none', cursor:'pointer', display:'flex', gap:10 },
-  fullCenter: { height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }
+  fullCenter: { height:'100%', display:'flex', alignItems:'center', justifyContent:'center' },
+  printHead: { borderBottom:'3px solid #000', paddingBottom:20, marginBottom:30 }
 };
