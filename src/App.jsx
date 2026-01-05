@@ -1,135 +1,109 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { 
-  FileText, UploadCloud, CheckCircle, AlertTriangle, 
-  Truck, Shield, Camera, FileCheck, Download
-} from 'lucide-react';
+import { Shield, Upload, FileText, Camera, Truck, CheckCircle, Trash2, Database } from 'lucide-react';
 
 const supabase = createClient(
   'https://gmhxmtlidgcgpstxiiwg.supabase.co',
   'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'
 );
 
-export default function MaximusV21() {
-  const [loading, setLoading] = useState(true);
+export default function MaximusConsolidado() {
   const [data, setData] = useState([]);
   const [arquivos, setArquivos] = useState([]);
   const [aba, setAba] = useState('AUDITORIA');
+  const [loading, setLoading] = useState(true);
 
-  // Garante que o sistema só rode no navegador para evitar erros de hidratação
   useEffect(() => {
-    fetchBase();
-  }, []);
-
-  async function fetchBase() {
-    try {
-      const { data: res, error } = await supabase.from('base_condicionantes').select('*').order('codigo');
+    async function load() {
+      const { data: res } = await supabase.from('base_condicionantes').select('*').order('codigo');
       if (res) setData(res);
-      if (error) throw error;
-    } catch (e) {
-      console.error("Erro de Sincronismo:", e);
-    } finally {
       setLoading(false);
     }
-  }
+    load();
+  }, []);
 
-  // MOTOR DE ARRASTE PARA MULTI-FORMATOS (PDF, DOCX, XLSX, FOTOS)
-  const handleFileDrop = (e) => {
+  const onDrop = useCallback((e) => {
     e.preventDefault();
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    if (droppedFiles.length > 0) {
-      const metadata = droppedFiles.map(f => ({
-        nome: f.name,
-        tipo: f.type,
-        tamanho: (f.size / 1024).toFixed(1) + ' KB'
-      }));
-      setArquivos(prev => [...prev, ...metadata]);
-      alert(`Sistema Maximus: ${droppedFiles.length} arquivo(s) processados com sucesso!`);
-    }
-  };
+    const files = Array.from(e.dataTransfer.files);
+    const novos = files.map(f => ({ nome: f.name.toUpperCase(), tipo: f.type }));
+    setArquivos(prev => [...prev, ...novos]);
+  }, []);
 
-  if (loading) return <div style={s.loader}>CARREGANDO ENGENHARIA AMBIENTAL...</div>;
+  const checkDoc = (nome) => arquivos.some(a => a.nome.includes(nome)) ? '🟢 OK' : '🔴 PENDENTE';
 
   return (
-    <div style={s.app} onDragOver={(e) => e.preventDefault()} onDrop={handleFileDrop}>
-      {/* SIDEBAR PROFISSIONAL */}
-      <aside style={s.sidebar}>
-        <div style={s.logo}>
-          <Shield color="#2ecc71" size={24}/>
-          <span style={{fontWeight:900, fontSize:18}}>MAXIMUS <small style={s.badge}>PhD</small></span>
+    <div style={s.app} onDragOver={e => e.preventDefault()} onDrop={onDrop}>
+      {/* SIDEBAR FIXA */}
+      <nav style={s.side}>
+        <div style={s.logo}><Shield color="#00ff00"/> MAXIMUS PhD</div>
+        <button onClick={() => setAba('AUDITORIA')} style={aba === 'AUDITORIA' ? s.btnA : s.btn}><FileText size={18}/> Auditoria</button>
+        <button onClick={() => setAba('FROTA')} style={aba === 'FROTA' ? s.btnA : s.btn}><Truck size={18}/> Frota / ANTT</button>
+        <button onClick={() => setAba('ARQUIVOS')} style={aba === 'ARQUIVOS' ? s.btnA : s.btn}><Database size={18}/> Nuvem ({arquivos.length})</button>
+        
+        <div style={s.footerSide}>
+          <div style={s.perfil}>PS</div>
+          <span style={{fontSize:10}}>Philipe Santana<br/>Consultoria Pará</span>
         </div>
+      </nav>
 
-        <nav style={s.nav}>
-          <button onClick={() => setAba('AUDITORIA')} style={aba === 'AUDITORIA' ? s.btnActive : s.btn}>
-            <FileText size={18}/> Auditoria Técnica
-          </button>
-          <button onClick={() => setAba('FROTA')} style={aba === 'FROTA' ? s.btnActive : s.btn}>
-            <Truck size={18}/> Controle de Frota
-          </button>
-        </nav>
-
-        <div style={s.perfil}>
-          <div style={s.avatar}>PS</div>
-          <div>
-            <div style={{fontWeight:'bold', color:'#222'}}>Philipe Santana</div>
-            <div style={{fontSize:10, color:'#888'}}>Consultoria SEMAS/PA</div>
-          </div>
-        </div>
-      </aside>
-
-      {/* ÁREA DE TRABALHO CLARA */}
+      {/* ÁREA DE CONTEÚDO */}
       <main style={s.main}>
-        <header style={s.header}>
+        <header style={s.head}>
           <div>
-            <h1 style={s.h1}>Painel de Licenciamento Integrado</h1>
-            <p style={s.p}>Gestão de Condicionantes e Documentação Ambiental</p>
+            <h2 style={{margin:0}}>Painel de Engenharia Ambiental</h2>
+            <small style={{color:'#666'}}>Sistema Consolidado v.Final</small>
           </div>
-
-          <div style={s.dropArea}>
-            <UploadCloud color="#2ecc71" size={28}/>
-            <div style={{textAlign:'left'}}>
-              <div style={{fontWeight:'bold', fontSize:12, color:'#333'}}>ARRASTE E COLE AQUI</div>
-              <div style={{fontSize:10, color:'#999'}}>PDF, DOCX, XLSX ou FOTOS (JPEG)</div>
-            </div>
+          <div style={s.dropzone}>
+            <Upload size={20} color="#00ff00"/> SOLTE PDF/FOTOS AQUI
           </div>
         </header>
 
-        <section style={s.content}>
+        {loading ? <div style={{padding:40, color:'#00ff00'}}>Sincronizando Base...</div> : (
           <div style={s.card}>
-            <div style={s.cardHeader}>
-              <h2 style={{fontSize:14, margin:0}}><FileCheck size={16} inline/> Itens de Auditoria na Base</h2>
-              <span style={s.countBadge}>{data.length}</span>
-            </div>
-
-            <table style={s.table}>
-              <thead>
-                <tr style={s.thRow}>
-                  <th style={s.th}>CÓD</th>
-                  <th style={s.th}>REQUISITO / CONDICIONANTE</th>
-                  <th style={s.th}>CATEGORIA</th>
-                  <th style={s.th}>STATUS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.map((item, i) => (
-                  <tr key={i} style={s.tr}>
-                    <td style={s.tdBold}>{item.codigo}</td>
-                    <td style={s.tdDesc}>{item.descricao_de_condicionante}</td>
-                    <td style={s.tdCat}>{item.categoria}</td>
-                    <td style={s.tdStatus}>
-                      <span style={s.statusPendente}>PENDENTE</span>
-                    </td>
+            {aba === 'AUDITORIA' && (
+              <table style={s.table}>
+                <thead>
+                  <tr style={s.th}>
+                    <th>CÓD</th>
+                    <th>CONDICIONANTE / REQUISITO SEMAS</th>
+                    <th>EVIDÊNCIA</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+                </thead>
+                <tbody>
+                  {data.map((item, i) => (
+                    <tr key={i} style={s.tr}>
+                      <td style={{color:'#00ff00', fontWeight:'bold', width:40}}>{item.codigo}</td>
+                      <td style={{fontSize:13, color:'#ccc'}}>{item.descricao_de_condicionante}</td>
+                      <td><Camera size={18} color={arquivos.length > 0 ? "#00ff00" : "#222"}/></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
 
-        {/* INDICADOR DE ARQUIVOS RECEBIDOS */}
-        {arquivos.length > 0 && (
-          <div style={s.fileToast}>
-            <Camera size={16}/> {arquivos.length} arquivos prontos para análise técnica.
+            {aba === 'FROTA' && (
+              <div style={{padding:30}}>
+                <h3 style={{color:'#00ff00'}}>Checklist Automático de Frota</h3>
+                {['CIV', 'CIPP', 'MOPP', 'ANTT'].map(doc => (
+                  <div key={doc} style={s.row}>
+                    <span>Documentação: <strong>{doc}</strong></span>
+                    <span style={{fontWeight:'bold'}}>{checkDoc(doc)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {aba === 'ARQUIVOS' && (
+              <div style={{padding:30}}>
+                <div style={{display:'flex', justifyContent:'space-between', marginBottom:20}}>
+                  <h3>Arquivos Processados</h3>
+                  <button onClick={() => setArquivos([])} style={s.btnClean}><Trash2 size={14}/> Limpar Tudo</button>
+                </div>
+                {arquivos.map((f, i) => (
+                  <div key={i} style={s.fileRow}>● {f.nome}</div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </main>
@@ -138,33 +112,21 @@ export default function MaximusV21() {
 }
 
 const s = {
-  app: { display: 'flex', height: '100vh', background: '#f8f9fa', color: '#333', fontFamily: 'Segoe UI, sans-serif' },
-  sidebar: { width: '260px', background: '#ffffff', borderRight: '1px solid #e0e0e0', padding: '30px', display: 'flex', flexDirection: 'column' },
-  logo: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '40px', color: '#1a1a1a' },
-  badge: { background: '#2ecc71', color: '#fff', padding: '2px 5px', borderRadius: '4px', fontSize: '10px' },
-  nav: { display: 'flex', flexDirection: 'column', gap: '5px' },
-  btn: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'none', border: 'none', color: '#666', cursor: 'pointer', borderRadius: '8px', textAlign: 'left', fontWeight: '500' },
-  btnActive: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: '#f0fdf4', border: '1px solid #dcfce7', color: '#166534', cursor: 'pointer', borderRadius: '8px', textAlign: 'left', fontWeight: 'bold' },
+  app: { display: 'flex', height: '100vh', background: '#050505', color: '#fff', fontFamily: 'Arial, sans-serif' },
+  side: { width: '240px', background: '#000', borderRight: '1px solid #111', padding: '25px', display: 'flex', flexDirection: 'column' },
+  logo: { fontSize: '18px', fontWeight: 'bold', marginBottom: '40px', display: 'flex', alignItems: 'center', gap: '10px' },
+  btn: { display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: 'none', border: 'none', color: '#444', cursor: 'pointer', textAlign: 'left', borderRadius: '8px', marginBottom: '5px' },
+  btnA: { display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: '#111', border: '1px solid #222', color: '#00ff00', cursor: 'pointer', textAlign: 'left', borderRadius: '8px', marginBottom: '5px', fontWeight: 'bold' },
   main: { flex: 1, padding: '40px', overflowY: 'auto' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' },
-  h1: { margin: 0, fontSize: '22px', fontWeight: '800', color: '#1a1a1a' },
-  p: { margin: '5px 0 0 0', fontSize: '13px', color: '#888' },
-  dropArea: { background: '#fff', border: '2px dashed #2ecc71', padding: '15px 25px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '15px', cursor: 'pointer' },
-  content: { display: 'flex', flexDirection: 'column', gap: '20px' },
-  card: { background: '#fff', borderRadius: '16px', border: '1px solid #e0e0e0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', overflow: 'hidden' },
-  cardHeader: { padding: '20px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  countBadge: { background: '#f0f0f0', padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' },
+  head: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' },
+  dropzone: { border: '1px dashed #00ff00', padding: '10px 20px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '11px', color: '#00ff00', background: 'rgba(0,255,0,0.02)' },
+  card: { background: '#080808', border: '1px solid #111', borderRadius: '15px', minHeight: '70vh' },
   table: { width: '100%', borderCollapse: 'collapse' },
-  thRow: { background: '#fafafa' },
-  th: { padding: '15px 20px', textAlign: 'left', fontSize: '11px', color: '#999', textTransform: 'uppercase', letterSpacing: '1px' },
-  tr: { borderBottom: '1px solid #f5f5f5' },
-  tdBold: { padding: '18px 20px', fontWeight: 'bold', color: '#2ecc71' },
-  tdDesc: { padding: '18px 20px', fontSize: '14px', color: '#444', lineHeight: '1.5' },
-  tdCat: { padding: '18px 20px', fontSize: '12px', color: '#888' },
-  tdStatus: { padding: '18px 20px' },
-  statusPendente: { background: '#fff7ed', color: '#c2410c', padding: '4px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', border: '1px solid #ffedd5' },
-  perfil: { marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '12px', padding: '15px', background: '#f9f9f9', borderRadius: '12px' },
-  avatar: { width: '36px', height: '36px', background: '#2ecc71', color: '#fff', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' },
-  loader: { height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2ecc71', fontWeight: 'bold', letterSpacing: '2px' },
-  fileToast: { position: 'fixed', bottom: '20px', right: '20px', background: '#1a1a1a', color: '#fff', padding: '12px 20px', borderRadius: '30px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px', boxShadow: '0 10px 15px rgba(0,0,0,0.2)' }
+  th: { textAlign: 'left', fontSize: '10px', color: '#333', borderBottom: '1px solid #111', background: '#000' },
+  tr: { borderBottom: '1px solid #0f0f0f' },
+  row: { display: 'flex', justifyContent: 'space-between', padding: '15px', borderBottom: '1px solid #111', background: '#0c0c0c', marginBottom: '5px', borderRadius: '8px' },
+  fileRow: { padding: '8px', fontSize: '12px', color: '#666', borderBottom: '1px solid #111' },
+  footerSide: { marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '10px', padding: '15px', background: '#080808', borderRadius: '10px' },
+  perfil: { width: '30px', height: '30px', background: '#00ff00', color: '#000', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' },
+  btnClean: { background: 'none', border: 'none', color: '#ff4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }
 };
