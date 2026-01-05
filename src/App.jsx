@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
 import { 
@@ -36,18 +35,18 @@ export default function MaximusPhD() {
     fetchData();
   }, []);
 
-  const imprimirTabela = () => {
+  // Versão simplificada da impressão para evitar erro no Vercel
+  const imprimirSimples = () => {
     const doc = new jsPDF();
-    doc.text("Relatório de Auditoria - Maximus PhD", 14, 15);
-    const tableData = filtrados.map(i => [i.codigo, i.textoLimpo, "PENDENTE"]);
-    doc.autoTable({
-      head: [['CÓD', 'REQUISITO TÉCNICO', 'STATUS']],
-      body: tableData,
-      startY: 20,
-      theme: 'grid',
-      styles: { fontSize: 8 }
+    doc.setFontSize(16);
+    doc.text("Relatório Maximus PhD", 10, 10);
+    doc.setFontSize(10);
+    let y = 20;
+    filtrados.slice(0, 20).forEach(item => {
+      doc.text(`${item.codigo} - ${item.textoLimpo.substring(0, 80)}...`, 10, y);
+      y += 10;
     });
-    doc.save("Relatorio_Auditoria.pdf");
+    doc.save("Relatorio.pdf");
   };
 
   const exportarDocx = (txt) => {
@@ -68,7 +67,7 @@ export default function MaximusPhD() {
       <aside style={s.sidebar}>
         <div style={s.logo}><ShieldCheck color="#25d366" size={24}/> MAXIMUS PhD</div>
         
-        <div style={s.label}>PAINEL DE CONTROLE</div>
+        <div style={s.label}>PAINEL</div>
         <button onClick={() => setAbaAtiva('DASHBOARD')} style={abaAtiva === 'DASHBOARD' ? s.tabBtnActive : s.tabBtn}>
           <LayoutDashboard size={18}/> Dashboard
         </button>
@@ -79,16 +78,10 @@ export default function MaximusPhD() {
           <Truck size={18}/> Frota & Logística
         </button>
 
-        <div style={s.label}>DOCUMENTAÇÃO</div>
+        <div style={s.label}>AÇÕES快速</div>
         <button onClick={() => exportarDocx("Minuta de Procuração...")} style={s.mainBtn}>
           <FileEdit size={18}/> Gerar Procuração
         </button>
-        
-        <div style={s.sidebarFooter}>
-            <button onClick={() => window.location.reload()} style={s.syncBtn}>
-                <RotateCcw size={14}/> Sincronizar Base
-            </button>
-        </div>
       </aside>
 
       <main style={s.main}>
@@ -97,40 +90,35 @@ export default function MaximusPhD() {
             <Search size={20} color="#444"/>
             <input 
               style={s.input} 
-              placeholder="Filtrar base de dados..." 
+              placeholder="Pesquisar..." 
               onChange={(e) => setBusca(e.target.value)} 
             />
           </div>
-          <button onClick={imprimirTabela} style={s.pdfBtn}>
+          <button onClick={imprimirSimples} style={s.pdfBtn}>
             <Printer size={16}/> PDF TELA
           </button>
         </header>
 
         {loading ? (
-          <div style={s.loader}>Carregando dados do servidor...</div>
+          <div style={s.loader}>Carregando...</div>
         ) : (
           <>
             {abaAtiva === 'DASHBOARD' && (
               <div style={s.grid}>
-                <div style={s.card}><h3>{items.length}</h3><p>Condicionantes</p></div>
-                <div style={s.card}><AlertCircle color="#ff4444"/><h3>02</h3><p>Prazos Vencendo</p></div>
-                <div style={s.card}><CheckCircle2 color="#25d366"/><h3>Online</h3><p>Status da Base</p></div>
+                <div style={s.card}><h3>{items.length}</h3><p>Itens</p></div>
+                <div style={s.card}><AlertCircle color="#ff4444"/><h3>02</h3><p>Alertas</p></div>
+                <div style={s.card}><CheckCircle2 color="#25d366"/><h3>Ativo</h3><p>Servidor</p></div>
               </div>
             )}
 
             {abaAtiva === 'AUDITORIA' && (
               <div style={s.tableContainer}>
-                <div style={s.tableHeader}>
-                    <span>Empresa: Cardoso & Rates Engenharia</span>
-                    <span>Processo: 2023/12345-SEMMA</span>
-                </div>
                 <table style={s.table}>
                   <thead>
                     <tr>
                       <th style={s.th}>CÓD</th>
-                      <th style={s.th}>REQUISITO TÉCNICO</th>
-                      <th style={s.th}>OFÍCIO</th>
-                      <th style={s.th}>STATUS</th>
+                      <th style={s.th}>REQUISITO</th>
+                      <th style={s.th}>AÇÃO</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -141,24 +129,10 @@ export default function MaximusPhD() {
                         <td style={s.tdAction}>
                           <button onClick={() => exportarDocx(item.textoLimpo)} style={s.miniBtn}><FileText size={14}/></button>
                         </td>
-                        <td>
-                          <select style={s.select}>
-                            <option>PENDENTE</option>
-                            <option>CONCLUÍDO</option>
-                          </select>
-                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-            )}
-
-            {abaAtiva === 'FROTA' && (
-              <div style={s.emptyState}>
-                <UploadCloud size={60} color="#25d366"/>
-                <h2>Módulo de Frota</h2>
-                <p>Arraste arquivos aqui para processamento IA</p>
               </div>
             )}
           </>
@@ -170,31 +144,26 @@ export default function MaximusPhD() {
 
 const s = {
   app: { display: 'flex', height: '100vh', backgroundColor: '#000', color: '#fff', fontFamily: 'sans-serif' },
-  sidebar: { width: '260px', backgroundColor: '#080808', padding: '25px', borderRight: '1px solid #222', display: 'flex', flexDirection: 'column' },
-  logo: { fontSize: '20px', fontWeight: 'bold', color: '#25d366', display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '30px' },
-  label: { fontSize: '10px', color: '#444', fontWeight: 'bold', margin: '20px 0 10px 0', letterSpacing: '1px' },
-  tabBtn: { width: '100%', padding: '12px', background: 'none', border: 'none', color: '#888', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', textAlign: 'left', borderRadius: '8px' },
-  tabBtnActive: { width: '100%', padding: '12px', background: '#111', border: 'none', color: '#25d366', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', textAlign: 'left', borderRadius: '8px' },
-  mainBtn: { width: '100%', padding: '15px', background: '#25d366', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' },
-  sidebarFooter: { marginTop: 'auto', paddingTop: '20px' },
-  syncBtn: { width: '100%', padding: '10px', background: 'none', border: '1px solid #222', color: '#555', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '12px' },
+  sidebar: { width: '250px', backgroundColor: '#080808', padding: '20px', borderRight: '1px solid #222' },
+  logo: { color: '#25d366', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '30px' },
+  label: { fontSize: '10px', color: '#444', margin: '20px 0 10px 0' },
+  tabBtn: { width: '100%', padding: '12px', background: 'none', border: 'none', color: '#888', textAlign: 'left', cursor: 'pointer', display: 'flex', gap: '10px' },
+  tabBtnActive: { width: '100%', padding: '12px', background: '#111', border: 'none', color: '#25d366', textAlign: 'left', cursor: 'pointer', display: 'flex', gap: '10px', borderRadius: '8px' },
+  mainBtn: { width: '100%', padding: '15px', background: '#25d366', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', gap: '10px' },
   main: { flex: 1, padding: '30px', overflowY: 'auto' },
-  header: { display: 'flex', justifyContent: 'space-between', marginBottom: '30px', alignItems: 'center' },
-  searchBox: { background: '#0a0a0a', borderRadius: '10px', display: 'flex', alignItems: 'center', padding: '0 15px', width: '60%', border: '1px solid #222' },
+  header: { display: 'flex', justifyContent: 'space-between', marginBottom: '30px' },
+  searchBox: { background: '#111', borderRadius: '10px', display: 'flex', alignItems: 'center', padding: '0 15px', width: '60%', border: '1px solid #222' },
   input: { background: 'transparent', border: 'none', color: '#fff', padding: '12px', width: '100%', outline: 'none' },
-  pdfBtn: { background: '#000', border: '1px solid #fff', color: '#fff', padding: '8px 15px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' },
+  pdfBtn: { background: '#000', border: '1px solid #fff', color: '#fff', padding: '8px 15px', borderRadius: '8px', cursor: 'pointer', display: 'flex', gap: '8px' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' },
   card: { background: '#080808', padding: '25px', borderRadius: '15px', border: '1px solid #222', textAlign: 'center' },
   tableContainer: { background: '#080808', borderRadius: '15px', border: '1px solid #222' },
-  tableHeader: { padding: '15px', borderBottom: '1px solid #222', display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#888' },
   table: { width: '100%', borderCollapse: 'collapse' },
-  th: { textAlign: 'left', padding: '15px', color: '#fff', fontSize: '14px', borderBottom: '1px solid #222' },
+  th: { textAlign: 'left', padding: '15px', color: '#25d366', borderBottom: '1px solid #222' },
   tr: { borderBottom: '1px solid #111' },
   tdCode: { padding: '15px', color: '#25d366', fontWeight: 'bold' },
-  tdDesc: { padding: '15px', color: '#ccc', fontSize: '13px', lineHeight: '1.5' },
+  tdDesc: { padding: '15px', color: '#ccc', fontSize: '12px' },
   tdAction: { padding: '15px' },
-  miniBtn: { background: '#111', border: '1px solid #222', color: '#25d366', padding: '6px', borderRadius: '5px', cursor: 'pointer' },
-  select: { background: '#000', color: '#fff', border: '1px solid #222', padding: '5px', borderRadius: '5px', fontSize: '11px' },
-  loader: { textAlign: 'center', marginTop: '50px', color: '#25d366' },
-  emptyState: { textAlign: 'center', padding: '100px', border: '2px dashed #111', borderRadius: '20px', marginTop: '20px' }
+  miniBtn: { background: '#111', border: '1px solid #222', color: '#25d366', padding: '6px', borderRadius: '5px' },
+  loader: { textAlign: 'center', marginTop: '50px', color: '#25d366' }
 };
