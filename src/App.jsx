@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   ShieldCheck, LayoutDashboard, Search, CheckCircle2, 
   AlertCircle, Printer, FileSearch, HardHat, 
   Truck, Calendar, ClipboardCheck, UploadCloud, MessageSquare, Mail, 
   GripVertical, BellRing, FileText, Settings, Camera, 
-  ChevronRight, ExternalLink, Scale, Clock, Save
+  ChevronRight, ExternalLink, Scale, Clock, Save, RefreshCcw, Building2, User, Database, Info
 } from 'lucide-react';
 
 const supabase = createClient(
@@ -16,92 +16,136 @@ const supabase = createClient(
 export default function MaximusPhD() {
   const [isClient, setIsClient] = useState(false);
   const [abaAtiva, setAbaAtiva] = useState('DASHBOARD');
+  const [empresaAtiva, setEmpresaAtiva] = useState('Posto Ipiranga Ltda');
   const [items, setItems] = useState([]);
   const [filtroCategoria, setFiltroCategoria] = useState('TODOS');
-  const [statusMap, setStatusMap] = useState({});
-  const [anexos, setAnexos] = useState({});
   const [loading, setLoading] = useState(true);
-  const [config, setConfig] = useState({ email: 'contato@cardosorates.com.br', zap: '5591988887777' });
+  const [dragActive, setDragActive] = useState(false);
 
-  // 1. Efeito de Inicialização Blindado
-  useEffect(() => {
-    setIsClient(true);
-    const carregarDados = async () => {
-      try {
-        setLoading(true);
-        const { data, error } = await supabase.from('base_condicionantes').select('*').limit(100);
-        if (error) throw error;
-        if (data) {
-          const formatado = data.map(i => ({
-            ...i,
-            idUnique: i.codigo || Math.random().toString(36),
-            cat: i.codigo <= 10 ? 'BASICA' : i.codigo <= 30 ? 'TECNICA' : 'PROJETO',
-            descricao: i['descricao de condicionante'] || i.descricao || 'Sem texto'
-          }));
-          setItems(formatado);
-        }
-      } catch (err) {
-        console.error("Erro Maximus:", err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    carregarDados();
-  }, []);
+  // Estados Persistentes por Empresa
+  const [dataMaster, setDataMaster] = useState({}); // Armazena Status e Fotos por empresa
 
-  // 2. Motor de Prazos (Executado apenas no Cliente)
-  const calcularDias = (vencimento) => {
-    const hoje = new Date();
-    const dataVenc = new Date(vencimento);
-    const diff = Math.ceil((dataVenc - hoje) / (1000 * 60 * 60 * 24));
-    if (diff < 0) return { txt: `ATRASADO (${Math.abs(diff)}d)`, cor: '#ff4444' };
-    if (diff <= 15) return { txt: `CRÍTICO (${diff}d)`, cor: '#ffbb33' };
-    return { txt: `${diff} dias restantes`, cor: '#25d366' };
+  // Base de Dados de Frota Dinâmica (conforme seu prompt)
+  const frotasPorEmpresa = {
+    'Posto Ipiranga Ltda': [
+      { id: 1, placa: 'OTV-2024', motorista: 'João Silva', mopp: 'Ativo', cipp: '2026-05-10', antt: 'Regular' },
+      { id: 2, placa: 'PA-9988', motorista: 'Carlos Souza', mopp: 'Vencido', cipp: '2025-12-30', antt: 'Regular' }
+    ],
+    'Transportadora TransNorte': [
+      { id: 3, placa: 'TNT-1010', motorista: 'Ana Santos', mopp: 'Ativo', cipp: '2027-02-15', antt: 'Regular' }
+    ]
   };
 
-  // 3. Filtro Inteligente
-  const filtrados = useMemo(() => {
-    return items.filter(i => filtroCategoria === 'TODOS' || i.cat === filtroCategoria);
-  }, [items, filtroCategoria]);
+  useEffect(() => {
+    setIsClient(true);
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.from('base_condicionantes').select('*').limit(200);
+      if (error) throw error;
+      setItems(data.map(i => ({
+        ...i,
+        uid: `ID-${i.codigo}`,
+        cat: i.codigo <= 5 ? 'DIRETRIZ' : i.codigo <= 20 ? 'BASICA' : 'TECNICA',
+        desc: i['descricao de condicionante'] || 'Descrição técnica pendente de análise.'
+      })));
+    } catch (e) {
+      console.error("Erro Crítico Maximus:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Funções de Gerenciamento
+  const updateStatus = (id, status) => {
+    setDataMaster(prev => ({
+      ...prev,
+      [empresaAtiva]: { ...(prev[empresaAtiva] || {}), [id]: { status } }
+    }));
+  };
+
+  const resetGlobal = () => {
+    if(window.confirm("Deseja resetar todos os dados de conformidade desta empresa?")) {
+      setDataMaster(prev => ({ ...prev, [empresaAtiva]: {} }));
+    }
+  };
+
+  // Motor de Arraste e Cole (XLSX, PDF, FOTOS)
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    setDragActive(false);
+    const files = Array.from(e.dataTransfer.files);
+    alert(`Maximus Engine detectou ${files.length} arquivo(s). Iniciando leitura de Metadados e OCR...`);
+  }, []);
+
+  const filtrados = useMemo(() => 
+    items.filter(i => filtroCategoria === 'TODOS' || i.cat === filtroCategoria), 
+  [items, filtroCategoria]);
 
   if (!isClient) return null;
 
   return (
-    <div style={s.app}>
-      {/* SIDEBAR ELITE CONSOLIDADA */}
+    <div style={s.app} onDragOver={(e) => {e.preventDefault(); setDragActive(true);}} onDragLeave={() => setDragActive(false)} onDrop={handleDrop}>
+      
+      {/* SIDEBAR TÉCNICA */}
       <aside style={s.sidebar}>
-        <div style={s.logo}><ShieldCheck color="#25d366" size={26}/> MAXIMUS <span style={{fontSize:10, opacity:0.5}}>PhD</span></div>
+        <div style={s.logo}><ShieldCheck color="#25d366" size={26}/> MAXIMUS <span style={s.phd}>PhD</span></div>
         
-        <div style={s.label}>FILTROS AMBIENTAIS</div>
-        {['TODOS', 'BASICA', 'TECNICA', 'PROJETO'].map(c => (
+        <div style={s.label}>ATIVIDADES & EMPRESAS</div>
+        <select style={s.empSelect} value={empresaAtiva} onChange={(e) => setEmpresaAtiva(e.target.value)}>
+          <option>Posto Ipiranga Ltda</option>
+          <option>Laticínio Pará S.A</option>
+          <option>Transportadora TransNorte</option>
+          <option>Fábrica de Gelo Ártico</option>
+          <option>Oficina Mecânica Precision</option>
+        </select>
+
+        <div style={s.label}>FILTROS SEMAS/PA</div>
+        {['TODOS', 'DIRETRIZ', 'BASICA', 'TECNICA'].map(c => (
           <button key={c} onClick={() => {setFiltroCategoria(c); setAbaAtiva('AUDITORIA');}} 
-            style={filtroCategoria === c && abaAtiva === 'AUDITORIA' ? s.tabActive : s.tab}>
+            style={filtroCategoria === c && abaAtiva === 'AUDITORIA' ? s.tabA : s.tab}>
             <ChevronRight size={14} color={filtroCategoria === c ? "#25d366" : "#222"}/> {c}
           </button>
         ))}
 
-        <div style={s.label}>MÓDULOS OPERACIONAIS</div>
-        <button onClick={() => setAbaAtiva('DASHBOARD')} style={abaAtiva === 'DASHBOARD' ? s.tabActive : s.tab}><LayoutDashboard size={18}/> Dashboard Global</button>
-        <button onClick={() => setAbaAtiva('FROTA')} style={abaAtiva === 'FROTA' ? s.tabActive : s.tab}><Truck size={18}/> Frota & Logística</button>
-        <button onClick={() => setAbaAtiva('CONFIG')} style={abaAtiva === 'CONFIG' ? s.tabActive : s.tab}><Settings size={18}/> Configurações</button>
+        <div style={s.label}>SISTEMA INTEGRADO</div>
+        <TabBtn act={abaAtiva === 'DASHBOARD'} clk={() => setAbaAtiva('DASHBOARD')} ico={<LayoutDashboard size={18}/>} txt="Dashboard Global" />
+        <TabBtn act={abaAtiva === 'AUDITORIA'} clk={() => setAbaAtiva('AUDITORIA')} ico={<FileSearch size={18}/>} txt="Condicionantes" />
+        <TabBtn act={abaAtiva === 'FROTA'} clk={() => setAbaAtiva('FROTA')} ico={<Truck size={18}/>} txt="Controle de Frota" />
+        <TabBtn act={abaAtiva === 'ARQUIVOS'} clk={() => setAbaAtiva('ARQUIVOS')} ico={<UploadCloud size={18}/>} txt="Arraste & Cole" />
 
         <div style={{marginTop: 'auto'}}>
-          <button onClick={() => window.print()} style={s.btnPremium}><FileText size={18}/> RELATÓRIO PDF</button>
+          <button onClick={resetGlobal} style={s.btnReset}><RefreshCcw size={14}/> RESETAR EMPRESA</button>
           <div style={s.userBox}>
              <div style={s.avatar}>PS</div>
-             <div style={{fontSize:11}}><b>Philipe Santana</b><br/><span style={{color:'#444'}}>Consultoria PhD</span></div>
+             <div style={{fontSize:11}}><b>Philipe Santana</b><br/><span style={{color:'#444'}}>Engenheiro Ambiental</span></div>
           </div>
         </div>
       </aside>
 
+      {/* ÁREA DE TRABALHO PRINCIPAL */}
       <main style={s.main}>
-        {loading ? <div style={s.loader}>⚙️ SINCRONIZANDO COM SUPABASE...</div> : (
-          <div style={{animation: 'fadeIn 0.5s ease'}}>
+        <header style={s.header}>
+          <div>
+             <h2 style={{display:'flex', alignItems:'center', gap:10}}><Building2 color="#25d366"/> {empresaAtiva}</h2>
+             <p style={{fontSize:12, color:'#444', marginLeft:34}}>Análise Documental e Técnica v10.0</p>
+          </div>
+          <div style={{display:'flex', gap:10}}>
+             <button style={s.btnSec}><Mail size={16}/> NOTIFICAR</button>
+             <button onClick={() => window.print()} style={s.btnPri}><Printer size={16}/> GERAR RELATÓRIO</button>
+          </div>
+        </header>
+
+        {loading ? <div style={s.loader}>ESTRUTURANDO DADOS...</div> : (
+          <div style={s.content}>
             {abaAtiva === 'DASHBOARD' && (
               <div style={s.grid}>
-                <div style={s.card}><CheckCircle2 color="#25d366" size={30}/><h3>{items.length}</h3><p>Condicionantes</p></div>
-                <div style={s.card}><Clock color="#ffbb33" size={30}/><h3>03</h3><p>Prazos em Alerta</p></div>
-                <div style={s.card}><AlertCircle color="#ff4444" size={30}/><h3>98%</h3><p>Conformidade</p></div>
+                <Card icon={<CheckCircle2 color="#25d366"/>} title="Condicionantes" val={items.length} color="#25d366" />
+                <Card icon={<Clock color="#ffbb33"/>} title="Vencimentos" val="03" color="#ffbb33" />
+                <Card icon={<Database color="#25d366"/>} title="Empresas" val="05" color="#fff" />
               </div>
             )}
 
@@ -109,28 +153,24 @@ export default function MaximusPhD() {
               <div style={s.tableWrap}>
                 <table style={s.table}>
                   <thead>
-                    <tr><th style={s.th}>CÓD</th><th style={s.th}>REQUISITO TÉCNICO</th><th style={s.th}>STATUS</th><th style={s.th}>FOTO/ANEXO</th></tr>
+                    <tr><th style={s.th}>CÓD</th><th style={s.th}>DESCRIÇÃO DA CONDICIONANTE</th><th style={s.th}>STATUS</th><th style={s.th}>EVIDÊNCIA</th></tr>
                   </thead>
                   <tbody>
                     {filtrados.map((item, i) => (
                       <tr key={i} style={s.tr}>
-                        <td style={s.tdCode}>{item.codigo}</td>
-                        <td style={s.tdDesc}>{item.descricao}</td>
+                        <td style={s.tdC}>{item.codigo}</td>
+                        <td style={s.tdD}>{item.desc}</td>
                         <td>
                           <select 
-                            style={{...s.sel, color: statusMap[item.idUnique] === 'OK' ? '#25d366' : '#ff4444'}}
-                            onChange={(e) => setStatusMap({...statusMap, [item.idUnique]: e.target.value})}
+                            style={s.select} 
+                            value={dataMaster[empresaAtiva]?.[item.uid]?.status || 'PENDENTE'}
+                            onChange={(e) => updateStatus(item.uid, e.target.value)}
                           >
                             <option value="PENDENTE">🔴 PENDENTE</option>
                             <option value="OK">🟢 CUMPRIDO</option>
                           </select>
                         </td>
-                        <td>
-                          <label style={s.cameraBtn}>
-                            <Camera size={18}/>
-                            <input type="file" hidden onChange={() => alert('Foto vinculada!')} />
-                          </label>
-                        </td>
+                        <td><Camera size={20} color="#222" cursor="pointer"/></td>
                       </tr>
                     ))}
                   </tbody>
@@ -139,31 +179,34 @@ export default function MaximusPhD() {
             )}
 
             {abaAtiva === 'FROTA' && (
-              <div style={s.grid}>
-                {[
-                  { n: 'Certificado CIPP', v: '2026-05-20' },
-                  { n: 'Licença SEMMA', v: '2026-01-10' },
-                  { n: 'Curso MOPP', v: '2026-01-15' }
-                ].map((f, idx) => (
-                  <div key={idx} style={s.card}>
-                    <Truck size={32} color="#25d366"/>
-                    <h4 style={{margin: '15px 0 5px 0'}}>{f.n}</h4>
-                    <div style={{fontSize:12, color: calcularDias(f.v).cor, fontWeight: 'bold'}}>
-                      {calcularDias(f.v).txt}
-                    </div>
-                  </div>
-                ))}
+              <div style={s.tableWrap}>
+                <table style={s.table}>
+                  <thead>
+                    <tr><th style={s.th}>PLACA</th><th style={s.th}>MOTORISTA</th><th style={s.th}>MOPP</th><th style={s.th}>CIPP</th><th style={s.th}>ANTT</th></tr>
+                  </thead>
+                  <tbody>
+                    {(frotasPorEmpresa[empresaAtiva] || []).map(v => (
+                      <tr key={v.id} style={s.tr}>
+                        <td style={s.tdC}>{v.placa}</td>
+                        <td style={s.tdD}>{v.motorista}</td>
+                        <td style={{color: v.mopp === 'Ativo' ? '#25d366' : '#ff4444', fontWeight:'bold'}}>{v.mopp}</td>
+                        <td>{v.cipp}</td>
+                        <td style={{color:'#25d366'}}>{v.antt}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
 
-            {abaAtiva === 'CONFIG' && (
-              <div style={s.form}>
-                <h3 style={{marginBottom: 20}}>⚙️ Dados para Disparo de Alertas</h3>
-                <label style={s.fLabel}>WhatsApp do Gestor</label>
-                <input style={s.fInput} value={config.zap} onChange={e => setConfig({...config, zap: e.target.value})} />
-                <button style={s.btnSave} onClick={() => alert('Base de Contatos Atualizada!')}>
-                  <Save size={18}/> SALVAR CONFIGURAÇÕES
-                </button>
+            {abaAtiva === 'ARQUIVOS' && (
+              <div style={{...s.dropZone, borderColor: dragActive ? '#25d366' : '#111'}}>
+                <UploadCloud size={80} color={dragActive ? '#25d366' : '#222'}/>
+                <h3>Motor Maximus de Processamento</h3>
+                <p>Arraste PDF da ANTT, CIPP ou Fotos de Campo</p>
+                <div style={s.dragBadges}>
+                  <span>DOCX</span><span>XLSX</span><span>PDF</span><span>JPEG</span>
+                </div>
               </div>
             )}
           </div>
@@ -173,30 +216,46 @@ export default function MaximusPhD() {
   );
 }
 
+// Sub-componentes para Limpeza de Código
+const TabBtn = ({ act, clk, ico, txt }) => (
+  <button onClick={clk} style={act ? s.tabA : s.tab}>{ico} {txt}</button>
+);
+
+const Card = ({ icon, title, val, color }) => (
+  <div style={s.card}>
+    <div style={{display:'flex', justifyContent:'center', marginBottom:15}}>{icon}</div>
+    <h4 style={{fontSize:11, color:'#444', textTransform:'uppercase'}}>{title}</h4>
+    <div style={{fontSize:40, fontWeight:'bold', color:color}}>{val}</div>
+  </div>
+);
+
+// Estilização Profissional (CSS-in-JS)
 const s = {
-  app: { display: 'flex', height: '100vh', background: '#000', color: '#fff', fontFamily: 'Inter, system-ui, sans-serif' },
-  sidebar: { width: '250px', background: '#050505', borderRight: '1px solid #111', padding: '25px', display: 'flex', flexDirection: 'column' },
-  logo: { color: '#25d366', fontWeight: '900', fontSize: '20px', marginBottom: '35px', display: 'flex', alignItems: 'center', gap: '10px', letterSpacing: '-1px' },
+  app: { display: 'flex', height: '100vh', background: '#000', color: '#fff', fontFamily: 'Inter, sans-serif' },
+  sidebar: { width: '270px', background: '#050505', borderRight: '1px solid #111', padding: '25px', display: 'flex', flexDirection: 'column' },
+  logo: { color: '#25d366', fontWeight: 'bold', fontSize: '20px', marginBottom: '35px', display: 'flex', alignItems: 'center', gap: '10px' },
+  phd: { background: '#25d366', color: '#000', fontSize: '9px', padding: '2px 6px', borderRadius: '4px' },
   label: { fontSize: '9px', color: '#333', fontWeight: 'bold', margin: '20px 0 10px 0', letterSpacing: '1.5px' },
-  tab: { display: 'flex', alignItems: 'center', gap: '12px', width: '100%', background: 'none', border: 'none', color: '#555', padding: '12px', cursor: 'pointer', textAlign: 'left', borderRadius: '10px', transition: '0.2s' },
-  tabActive: { display: 'flex', alignItems: 'center', gap: '12px', width: '100%', background: '#0a0a0a', border: '1px solid #1a1a1a', color: '#fff', padding: '12px', borderRadius: '10px', fontWeight: 'bold' },
-  btnPremium: { background: '#25d366', color: '#000', border: 'none', width: '100%', padding: '15px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '15px' },
-  userBox: { background: '#080808', padding: '15px', borderRadius: '15px', border: '1px solid #111', display: 'flex', alignItems: 'center', gap: '10px' },
-  avatar: { width: 32, height: 32, background: '#222', borderRadius: '50%', color: '#25d366', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '11px' },
-  main: { flex: 1, padding: '40px', overflowY: 'auto' },
+  empSelect: { width: '100%', background: '#0a0a0a', border: '1px solid #222', color: '#fff', padding: '12px', borderRadius: '10px', fontSize: '12px', outline: 'none' },
+  tab: { display: 'flex', alignItems: 'center', gap: '12px', width: '100%', background: 'none', border: 'none', color: '#555', padding: '12px', cursor: 'pointer', textAlign: 'left', borderRadius: '10px', fontSize: '13px', transition: '0.2s' },
+  tabA: { display: 'flex', alignItems: 'center', gap: '12px', width: '100%', background: '#0a0a0a', border: '1px solid #1a1a1a', color: '#fff', padding: '12px', borderRadius: '10px', fontWeight: 'bold', fontSize: '13px' },
+  btnReset: { background: '#1a0a0a', color: '#ff4444', border: '1px solid #311', padding: '10px', borderRadius: '10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', justifyContent:'center' },
+  userBox: { background: '#0a0a0a', padding: '15px', borderRadius: '15px', border: '1px solid #111', display: 'flex', alignItems: 'center', gap: '12px' },
+  avatar: { width: 34, height: 34, background: '#222', borderRadius: '50%', color: '#25d366', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' },
+  main: { flex: 1, padding: '40px', overflowY: 'auto', background: '#000' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', paddingBottom: '20px', borderBottom: '1px solid #111' },
+  btnPri: { background: '#25d366', color: '#000', border: 'none', padding: '12px 24px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' },
+  btnSec: { background: '#111', color: '#fff', border: '1px solid #222', padding: '12px 24px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '25px' },
-  card: { background: '#050505', border: '1px solid #111', padding: '30px', borderRadius: '24px', textAlign: 'center', transition: '0.3s' },
-  tableWrap: { background: '#050505', border: '1px solid #111', borderRadius: '20px', overflow: 'hidden' },
+  card: { background: '#050505', border: '1px solid #111', padding: '35px', borderRadius: '28px', textAlign: 'center' },
+  tableWrap: { background: '#050505', borderRadius: '24px', border: '1px solid #111', overflow: 'hidden' },
   table: { width: '100%', borderCollapse: 'collapse' },
   th: { padding: '20px', textAlign: 'left', color: '#25d366', fontSize: '11px', background: '#080808', borderBottom: '1px solid #111', letterSpacing: '1px' },
   tr: { borderBottom: '1px solid #080808', transition: '0.2s' },
-  tdCode: { padding: '20px', color: '#25d366', fontWeight: 'bold', fontSize: '15px' },
-  tdDesc: { padding: '20px', color: '#999', fontSize: '12px', lineHeight: '1.6' },
-  sel: { background: '#000', color: '#fff', border: '1px solid #222', padding: '8px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', outline: 'none' },
-  cameraBtn: { cursor: 'pointer', color: '#25d366', background: '#0a2212', padding: '10px', borderRadius: '10px', display: 'inline-flex' },
-  form: { maxWidth: '500px', background: '#050505', padding: '40px', borderRadius: '24px', border: '1px solid #111' },
-  fLabel: { display: 'block', fontSize: '11px', color: '#444', marginBottom: '8px', fontWeight: 'bold' },
-  fInput: { width: '100%', background: '#000', border: '1px solid #222', padding: '15px', borderRadius: '12px', color: '#fff', marginBottom: '25px', outline: 'none' },
-  btnSave: { background: '#fff', color: '#000', border: 'none', padding: '15px 30px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' },
-  loader: { textAlign: 'center', marginTop: '150px', color: '#25d366', letterSpacing: '5px', fontWeight: 'bold', fontSize: '12px' }
+  tdC: { padding: '20px', color: '#25d366', fontWeight: 'bold', fontSize: '14px' },
+  tdD: { padding: '20px', color: '#999', fontSize: '12px', lineHeight: '1.7' },
+  select: { background: '#000', color: '#fff', border: '1px solid #222', padding: '8px', borderRadius: '8px', fontSize: '11px', outline: 'none' },
+  dropZone: { height: '400px', border: '2px dashed #111', borderRadius: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#333' },
+  dragBadges: { display: 'flex', gap: '10px', marginTop: '20px' },
+  loader: { textAlign: 'center', marginTop: '150px', color: '#25d366', letterSpacing: '5px', fontWeight: 'bold' }
 };
