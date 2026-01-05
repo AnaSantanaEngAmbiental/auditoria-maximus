@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   ShieldCheck, LayoutDashboard, Truck, UploadCloud, 
-  Camera, FileText, CheckCircle2, RefreshCcw, AlertCircle
+  Camera, FileText, CheckCircle2, RefreshCcw, Search, Image as ImageIcon
 } from 'lucide-react';
 
 const supabase = createClient(
@@ -10,14 +10,14 @@ const supabase = createClient(
   'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'
 );
 
-export default function MaximusV19() {
+export default function MaximusV20() {
   const [isClient, setIsClient] = useState(false);
   const [items, setItems] = useState([]);
   const [arquivos, setArquivos] = useState([]);
   const [abaAtiva, setAbaAtiva] = useState('DASHBOARD');
   const [loading, setLoading] = useState(true);
 
-  // Garante estabilidade contra Erro #418
+  // PREVENÇÃO DE ERRO #418: Só inicia após confirmação do Navegador
   useEffect(() => {
     setIsClient(true);
     fetchData();
@@ -26,27 +26,28 @@ export default function MaximusV19() {
   async function fetchData() {
     setLoading(true);
     try {
-      const { data } = await supabase.from('base_condicionantes').select('*').order('codigo');
+      const { data, error } = await supabase.from('base_condicionantes').select('*').order('codigo');
       if (data) setItems(data);
-    } catch (e) { console.error("Erro Sync:", e); }
+      if (error) console.error("Erro Supabase:", error);
+    } catch (e) { console.error("Erro Crítico:", e); }
     finally { setLoading(false); }
   }
 
-  // MOTOR DE ARRASTE PARA MULTI-FORMATOS (PDF, DOCX, XLSX, JPEG)
+  // MOTOR DE ARRASTE PhD (PDF, DOCX, XLSX, JPEG, PNG)
   const handleDrop = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
-    const droppedFiles = Array.from(e.dataTransfer.files);
+    const files = Array.from(e.dataTransfer.files);
     
-    if (droppedFiles.length > 0) {
-      const novosDocs = droppedFiles.map(f => ({
+    if (files.length > 0) {
+      const novos = files.map(f => ({
         nome: f.name,
         tipo: f.type,
-        tamanho: (f.size / 1024).toFixed(1) + ' KB'
+        tamanho: (f.size / 1024).toFixed(0) + 'KB'
       }));
-      setArquivos(prev => [...prev, ...novosDocs]);
+      setArquivos(prev => [...prev, ...novos]);
       setAbaAtiva('AUDITORIA');
-      console.log("Arquivos processados pelo Motor Maximus:", novosDocs);
+      alert(`Maximus Engine: ${files.length} documento(s) recebidos com sucesso!`);
     }
   }, []);
 
@@ -54,79 +55,90 @@ export default function MaximusV19() {
 
   return (
     <div 
-      style={s.container} 
-      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }} 
+      style={s.app} 
+      onDragOver={(e) => e.preventDefault()} 
       onDrop={handleDrop}
     >
-      {/* SIDEBAR TÉCNICA */}
+      {/* SIDEBAR - DESIGN CLARO E PROFISSIONAL */}
       <aside style={s.sidebar}>
-        <div style={s.logo}><ShieldCheck color="#25d366"/> MAXIMUS <span style={s.badge}>PhD</span></div>
+        <div style={s.logo}>
+          <ShieldCheck size={28} color="#25d366"/>
+          <div>MAXIMUS <span style={s.badge}>PhD v20</span></div>
+        </div>
         
+        <div style={s.navLabel}>SISTEMA INTEGRADO SEMAS/PA</div>
         <nav style={s.nav}>
           <button onClick={() => setAbaAtiva('DASHBOARD')} style={abaAtiva === 'DASHBOARD' ? s.btnA : s.btn}>
-            <LayoutDashboard size={18}/> Dashboard
+            <LayoutDashboard size={20}/> Visão Geral
           </button>
           <button onClick={() => setAbaAtiva('AUDITORIA')} style={abaAtiva === 'AUDITORIA' ? s.btnA : s.btn}>
-            <FileText size={18}/> Auditoria Técnica
+            <FileText size={20}/> Auditoria e Leis
           </button>
           <button onClick={() => setAbaAtiva('FROTA')} style={abaAtiva === 'FROTA' ? s.btnA : s.btn}>
-            <Truck size={18}/> Controle de Frota
+            <Truck size={20}/> Frota (CIPP/MOPP)
           </button>
         </nav>
 
-        <div style={s.perfil}>
+        <div style={s.userCard}>
           <div style={s.avatar}>PS</div>
-          <div><div style={{fontSize:12, fontWeight:'bold'}}>Philipe Santana</div><div style={{fontSize:10, color:'#444'}}>Eng. Ambiental PhD</div></div>
+          <div>
+            <div style={{fontSize:13, fontWeight:'bold', color:'#fff'}}>Philipe Santana</div>
+            <div style={{fontSize:11, color:'#666'}}>Consultoria PhD</div>
+          </div>
         </div>
       </aside>
 
-      {/* ÁREA DE TRABALHO */}
+      {/* ÁREA PRINCIPAL */}
       <main style={s.main}>
         <header style={s.header}>
           <div>
-            <h1 style={{margin:0, fontSize:22}}>Sistema Integrado SEMAS/PA</h1>
-            <p style={{color:'#444', fontSize:12}}>Engenharia Integrada - Estado do Pará</p>
+            <h1 style={s.title}>Painel de Controle Ambiental</h1>
+            <p style={s.subtitle}>Estado do Pará - Engenharia e Licenciamento</p>
           </div>
+          
           <div style={s.dropZone}>
-            <UploadCloud size={20} color="#25d366"/>
-            <span>SOLTE PDF, DOCX OU FOTOS AQUI</span>
+            <UploadCloud color="#25d366" size={24}/>
+            <div>
+              <strong style={{display:'block'}}>Arraste e Cole Aqui</strong>
+              <small>PDF, DOCX, XLSX ou FOTOS</small>
+            </div>
           </div>
         </header>
 
-        {loading ? <div style={s.loading}>CARREGANDO BASE DE DADOS...</div> : (
-          <>
+        {loading ? <div style={s.loader}>SINCRONIZANDO COM SEMAS...</div> : (
+          <div style={s.content}>
             {abaAtiva === 'DASHBOARD' && (
               <div style={s.grid}>
                 <div style={s.card}>
                   <CheckCircle2 color="#25d366" size={32}/>
-                  <h2>{items.length}</h2>
-                  <p>Condicionantes na Base</p>
+                  <h3>{items.length}</h3>
+                  <p>Condicionantes Ativas</p>
                 </div>
                 <div style={s.card}>
-                  <UploadCloud color="#3498db" size={32}/>
-                  <h2>{arquivos.length}</h2>
-                  <p>Documentos Digitalizados</p>
+                  <ImageIcon color="#3498db" size={32}/>
+                  <h3>{arquivos.length}</h3>
+                  <p>Arquivos em Nuvem</p>
                 </div>
               </div>
             )}
 
             {abaAtiva === 'AUDITORIA' && (
-              <div style={s.tableContainer}>
+              <div style={s.tableCard}>
                 <table style={s.table}>
                   <thead>
                     <tr>
                       <th style={s.th}>CÓD</th>
-                      <th style={s.th}>REQUISITO DA LICENÇA</th>
-                      <th style={s.th}>EVIDÊNCIA</th>
+                      <th style={s.th}>REQUISITO TÉCNICO / CONDICIONANTE</th>
+                      <th style={s.th}>ANEXO</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {items.map((item, idx) => (
-                      <tr key={idx} style={s.tr}>
+                    {items.map((item, i) => (
+                      <tr key={i} style={s.tr}>
                         <td style={s.tdCod}>{item.codigo}</td>
                         <td style={s.tdDesc}>{item.descricao_de_condicionante}</td>
                         <td style={s.tdIcon}>
-                          <Camera size={20} color={arquivos.length > 0 ? "#25d366" : "#111"}/>
+                          <Camera size={22} color={arquivos.length > 0 ? "#25d366" : "#222"}/>
                         </td>
                       </tr>
                     ))}
@@ -134,7 +146,7 @@ export default function MaximusV19() {
                 </table>
               </div>
             )}
-          </>
+          </div>
         )}
       </main>
     </div>
@@ -142,26 +154,29 @@ export default function MaximusV19() {
 }
 
 const s = {
-  container: { display: 'flex', height: '100vh', background: '#000', color: '#fff', fontFamily: 'Inter, sans-serif' },
-  sidebar: { width: '260px', background: '#050505', borderRight: '1px solid #111', padding: '30px', display: 'flex', flexDirection: 'column' },
-  logo: { fontSize: '20px', fontWeight: 'bold', color: '#25d366', display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '40px' },
-  badge: { fontSize: '10px', background: '#25d366', color: '#000', padding: '2px 6px', borderRadius: '4px' },
-  nav: { display: 'flex', flexDirection: 'column', gap: '10px' },
-  btn: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'transparent', border: 'none', color: '#444', cursor: 'pointer', textAlign: 'left', borderRadius: '8px', transition: '0.3s' },
-  btnA: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: '#0a0a0a', border: '1px solid #1a1a1a', color: '#fff', cursor: 'pointer', textAlign: 'left', borderRadius: '8px', fontWeight: 'bold' },
-  main: { flex: 1, padding: '40px', overflowY: 'auto' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', borderBottom: '1px solid #111', paddingBottom: '20px' },
-  dropZone: { border: '1px dashed #25d366', padding: '15px 25px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '15px', fontSize: '11px', color: '#25d366', background: 'rgba(37, 211, 102, 0.05)' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' },
-  card: { background: '#050505', border: '1px solid #111', padding: '30px', borderRadius: '20px', textAlign: 'center' },
-  tableContainer: { background: '#050505', borderRadius: '20px', border: '1px solid #111', overflow: 'hidden' },
+  app: { display: 'flex', height: '100vh', background: '#0a0a0a', color: '#eee', fontFamily: 'Inter, system-ui, sans-serif' },
+  sidebar: { width: '280px', background: '#000', borderRight: '1px solid #1a1a1a', padding: '30px', display: 'flex', flexDirection: 'column' },
+  logo: { display: 'flex', alignItems: 'center', gap: '12px', fontSize: '20px', fontWeight: '900', color: '#fff', marginBottom: '40px' },
+  badge: { fontSize: '10px', background: '#25d366', color: '#000', padding: '2px 6px', borderRadius: '4px', verticalAlign: 'middle' },
+  navLabel: { fontSize: '10px', color: '#444', fontWeight: '800', marginBottom: '15px', letterSpacing: '1px' },
+  nav: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  btn: { display: 'flex', alignItems: 'center', gap: '15px', padding: '14px', background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', textAlign: 'left', borderRadius: '12px', transition: '0.2s', fontSize: '14px' },
+  btnA: { display: 'flex', alignItems: 'center', gap: '15px', padding: '14px', background: '#111', border: '1px solid #222', color: '#25d366', cursor: 'pointer', textAlign: 'left', borderRadius: '12px', fontWeight: 'bold' },
+  userCard: { marginTop: 'auto', background: '#0a0a0a', padding: '15px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '12px', border: '1px solid #111' },
+  avatar: { width: '40px', height: '40px', background: '#222', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#25d366', fontWeight: 'bold' },
+  main: { flex: 1, padding: '40px', overflowY: 'auto', background: 'linear-gradient(135deg, #0a0a0a 0%, #050505 100%)' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' },
+  title: { margin: 0, fontSize: '24px', fontWeight: '800', color: '#fff' },
+  subtitle: { margin: '5px 0 0 0', color: '#444', fontSize: '13px' },
+  dropZone: { background: 'rgba(37, 211, 102, 0.03)', border: '1px dashed #25d366', padding: '15px 25px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '20px', color: '#25d366', fontSize: '12px' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '25px' },
+  card: { background: '#000', border: '1px solid #111', padding: '30px', borderRadius: '24px', textAlign: 'center' },
+  tableCard: { background: '#000', borderRadius: '24px', border: '1px solid #111', overflow: 'hidden' },
   table: { width: '100%', borderCollapse: 'collapse' },
-  th: { padding: '20px', textAlign: 'left', fontSize: '11px', color: '#333', borderBottom: '1px solid #111', textTransform: 'uppercase' },
-  tr: { borderBottom: '1px solid #080808' },
-  tdCod: { padding: '20px', color: '#25d366', fontWeight: 'bold' },
-  tdDesc: { padding: '20px', color: '#888', fontSize: '13px', lineHeight: '1.6' },
+  th: { padding: '20px', textAlign: 'left', fontSize: '11px', color: '#333', borderBottom: '1px solid #111', textTransform: 'uppercase', letterSpacing: '1px' },
+  tr: { borderBottom: '1px solid #080808', transition: '0.2s' },
+  tdCod: { padding: '20px', color: '#25d366', fontWeight: 'bold', width: '50px' },
+  tdDesc: { padding: '20px', color: '#999', fontSize: '14px', lineHeight: '1.6' },
   tdIcon: { padding: '20px', textAlign: 'center' },
-  perfil: { marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '12px', padding: '15px', background: '#0a0a0a', borderRadius: '12px' },
-  avatar: { width: 35, height: 35, background: '#222', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#25d366', fontWeight: 'bold' },
-  loading: { textAlign: 'center', marginTop: '100px', color: '#25d366', letterSpacing: '2px' }
+  loader: { textAlign: 'center', marginTop: '100px', color: '#25d366', fontSize: '12px', letterSpacing: '3px' }
 };
