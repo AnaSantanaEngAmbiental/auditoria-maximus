@@ -7,7 +7,7 @@ const supabase = createClient(
   'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'
 );
 
-export default function MaximusV38() {
+export default function MaximusV39() {
   const [items, setItems] = useState([]);
   const [arquivos, setArquivos] = useState([]);
   const [aba, setAba] = useState('AUDITORIA');
@@ -17,14 +17,14 @@ export default function MaximusV38() {
     async function init() {
       const { data } = await supabase.from('base_condicionantes').select('*');
       if (data) setItems(data);
-      const cache = localStorage.getItem('MAXIMUS_PHD_V38');
+      const cache = localStorage.getItem('MAXIMUS_PHD_V39');
       if (cache) setArquivos(JSON.parse(cache));
     }
     init();
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('MAXIMUS_PHD_V38', JSON.stringify(arquivos));
+    localStorage.setItem('MAXIMUS_PHD_V39', JSON.stringify(arquivos));
   }, [arquivos]);
 
   const checar = (id) => {
@@ -32,10 +32,11 @@ export default function MaximusV38() {
     const listaNomes = arquivos.map(a => a.nome.toUpperCase()).join(' ');
     const termo = id.toString().toUpperCase();
     
-    if (termo === 'CIPP') return listaNomes.includes('CIPP') || listaNomes.includes('CTPP') || listaNomes.includes('5.1') || listaNomes.includes('5.2');
+    // Motor de Validação Agressivo (Frota)
+    if (termo === 'CIPP') return listaNomes.includes('CIPP') || listaNomes.includes('CTPP') || listaNomes.includes('5.1');
     if (termo === 'CIV') return listaNomes.includes('CIV') || listaNomes.includes('CRLV') || listaNomes.includes('3.1') || listaNomes.includes('3.2');
-    if (termo === 'MOPP') return listaNomes.includes('MOPP') || listaNomes.includes('CURSO') || listaNomes.includes('TREINAMENTO') || listaNomes.includes('CNH');
-    if (termo === 'ANTT') return listaNomes.includes('ANTT') || listaNomes.includes('RNTRC') || listaNomes.includes('4.1') || listaNomes.includes('4.2');
+    if (termo === 'MOPP') return listaNomes.includes('MOPP') || listaNomes.includes('CURSO') || listaNomes.includes('CNH');
+    if (termo === 'ANTT') return listaNomes.includes('ANTT') || listaNomes.includes('RNTRC') || listaNomes.includes('4.1');
     
     return listaNomes.includes(termo);
   };
@@ -56,7 +57,7 @@ export default function MaximusV38() {
   return (
     <div style={s.body} onDragOver={e => e.preventDefault()} onDrop={handleUpload}>
       <aside style={s.side}>
-        <div style={s.logo}><Shield color="#0f0" size={24}/> MAXIMUS PhD <span style={s.v}>v38</span></div>
+        <div style={s.logo}><Shield color="#0f0" size={24}/> MAXIMUS PhD <span style={s.v}>v39</span></div>
         <nav style={s.nav}>
           <button onClick={() => setAba('AUDITORIA')} style={aba === 'AUDITORIA' ? s.btnA : s.btn}><HardHat size={18}/> Auditoria Técnica</button>
           <button onClick={() => setAba('FROTA')} style={aba === 'FROTA' ? s.btnA : s.btn}><Truck size={18}/> Frota / CIPP</button>
@@ -70,7 +71,7 @@ export default function MaximusV38() {
 
       <main style={s.main}>
         <header style={s.head}>
-          <div style={s.search}><Search size={18} color="#333"/><input placeholder="Buscar..." style={s.input} value={busca} onChange={e=>setBusca(e.target.value)}/></div>
+          <div style={s.search}><Search size={18} color="#333"/><input placeholder="Buscar requisito..." style={s.input} value={busca} onChange={e=>setBusca(e.target.value)}/></div>
           <div style={{display:'flex', gap:10}}>
             <label style={s.btnUp}><FilePlus size={18}/> ADICIONAR <input type="file" multiple hidden onChange={handleUpload}/></label>
             <button style={s.btnPrn} onClick={() => window.print()}><Printer size={18}/></button>
@@ -87,7 +88,7 @@ export default function MaximusV38() {
           )}
           {aba === 'AUDITORIA' && (
             <table style={s.table}>
-              <thead><tr style={s.th}><th>CÓD</th><th>DESCRIÇÃO</th><th style={{textAlign:'center'}}>STATUS</th></tr></thead>
+              <thead><tr style={s.th}><th>CÓD</th><th>DESCRIÇÃO DO REQUISITO AMBIENTAL</th><th style={{textAlign:'center'}}>STATUS</th></tr></thead>
               <tbody>
                 {filtrados.map((it, i) => (
                   <tr key={i} style={s.tr}><td style={s.tdC}>{it.codigo}</td><td style={s.tdD}>{it.descricao_de_condicionante}</td><td style={{textAlign:'center'}}><Camera color={checar(it.codigo) ? '#0f0' : '#1a1a1a'} size={24}/></td></tr>
@@ -99,10 +100,11 @@ export default function MaximusV38() {
             <div style={{padding:40}}>
               {['CIPP', 'CIV', 'MOPP', 'ANTT'].map(doc => (
                 <div key={doc} style={s.row}>
-                  <span>Certificado: <strong>{doc}</strong></span>
+                  <span>Certificado / Documento: <strong>{doc}</strong></span>
                   <div style={{display:'flex', alignItems:'center', gap:15}}><span style={{color: checar(doc) ? '#0f0' : '#f00', fontWeight:'bold'}}>{checar(doc) ? 'VALIDADO ✓' : 'PENDENTE X'}</span><Camera color={checar(doc) ? '#0f0' : '#222'} size={20}/></div>
                 </div>
               ))}
+              {!checar('MOPP') && <div style={s.alert}><AlertCircle size={16}/> MOPP pendente: Renomeie um arquivo para "MOPP" para validar.</div>}
             </div>
           )}
         </div>
@@ -112,7 +114,7 @@ export default function MaximusV38() {
 }
 
 const s = {
-  body: { display: 'flex', height: '100vh', background: '#000', color: '#eee', fontFamily: 'sans-serif' },
+  body: { display: 'flex', height: '100vh', background: '#000', color: '#eee', fontFamily: 'sans-serif', overflow:'hidden' },
   side: { width: '300px', background: '#050505', borderRight: '1px solid #111', padding: '30px', display: 'flex', flexDirection: 'column' },
   logo: { fontSize: '20px', fontWeight: 'bold', marginBottom: '40px', display: 'flex', alignItems:'center', gap:12, color:'#0f0' },
   v: { fontSize: '10px', background: '#0f0', color: '#000', padding: '2px 6px', borderRadius: '4px' },
@@ -122,7 +124,7 @@ const s = {
   boxArq: { flex: 1, background: '#020202', borderRadius: '20px', border: '1px solid #111', overflow: 'hidden', display: 'flex', flexDirection: 'column' },
   boxHead: { padding: '15px', fontSize: '11px', color: '#333', borderBottom: '1px solid #111', display: 'flex', justifyContent: 'space-between' },
   boxLista: { flex: 1, overflowY: 'auto', padding: '15px' },
-  itemArq: { fontSize: '10px', color: '#666', marginBottom: '10px', display: 'flex', gap: '8px' },
+  itemArq: { fontSize: '10px', color: '#666', marginBottom: '10px', display: 'flex', gap: '8px', alignItems:'center' },
   main: { flex: 1, padding: '40px', overflowY: 'auto' },
   head: { display: 'flex', justifyContent: 'space-between', marginBottom: '40px' },
   search: { flex: 1, background: '#0a0a0a', border: '1px solid #111', borderRadius: '15px', display: 'flex', alignItems: 'center', padding: '0 25px', maxWidth: '450px' },
@@ -134,8 +136,9 @@ const s = {
   th: { textAlign: 'left', color: '#333', fontSize: '11px', padding: '25px', borderBottom: '1px solid #111' },
   tr: { borderBottom: '1px solid #080808' },
   tdC: { padding: '25px', color: '#0f0', fontWeight: 'bold', fontSize: '18px' },
-  tdD: { padding: '25px', color: '#999', fontSize: '14px' },
-  row: { display: 'flex', justifyContent: 'space-between', padding: '30px', borderBottom: '1px solid #111' },
+  tdD: { padding: '25px', color: '#999', fontSize: '14px', lineHeight: '1.6' },
+  row: { display: 'flex', justifyContent: 'space-between', padding: '30px', borderBottom: '1px solid #111', alignItems:'center' },
   dash: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '25px', padding: '40px' },
-  kpi: { background: '#000', padding: '40px', borderRadius: '25px', border: '1px solid #111', textAlign: 'center' }
+  kpi: { background: '#000', padding: '40px', borderRadius: '25px', border: '1px solid #111', textAlign: 'center' },
+  alert: { margin: '20px 40px', padding: '15px', background: '#1a1100', color: '#ff9900', borderRadius: '10px', display: 'flex', gap: '10px', alignItems: 'center', fontSize: '12px' }
 };
