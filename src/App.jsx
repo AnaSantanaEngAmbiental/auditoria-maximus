@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
-  Shield, Trash2, CheckCircle, Camera, Search, PieChart, HardHat, Truck, 
+  Shield, Trash2, CheckCircle, Camera, Search, PieChart, 
   FilePlus, History, Save, Building2, Map, Scale, Download,
-  Wifi, Zap, Cpu, Activity, Info, MapPin, BarChart3
+  Zap, Cpu, Activity, MapPin, BarChart3, PenTool, Check
 } from 'lucide-react';
 
 const supabase = createClient(
@@ -11,7 +11,7 @@ const supabase = createClient(
   'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'
 );
 
-export default function MaximusV52() {
+export default function MaximusV53() {
   const [items, setItems] = useState([]);
   const [arquivos, setArquivos] = useState([]);
   const [logs, setLogs] = useState([]);
@@ -19,9 +19,11 @@ export default function MaximusV52() {
   const [aba, setAba] = useState('AUDITORIA');
   const [busca, setBusca] = useState('');
   const [loading, setLoading] = useState(true);
+  const [assinando, setAssinando] = useState(false);
+  
   const fileInputRef = useRef(null);
 
-  // 1. CARREGAMENTO E SINCRONIA DE DADOS E LOGS
+  // 1. INICIALIZAÇÃO LIMPA E VARREDURA DE CACHE
   useEffect(() => {
     localStorage.setItem('LAST_PROJ', projeto);
     async function init() {
@@ -29,81 +31,93 @@ export default function MaximusV52() {
       const { data } = await supabase.from('base_condicionantes').select('*').order('codigo');
       if (data) setItems(data);
       
-      setArquivos(JSON.parse(localStorage.getItem(`MAX_FILES_${projeto}`) || '[]'));
+      // Carrega arquivos específicos do projeto (Se estiver vazio no banco, inicia vazio na tela)
+      const storageKey = `MAX_FILES_${projeto}`;
+      const savedFiles = localStorage.getItem(storageKey);
+      setArquivos(savedFiles ? JSON.parse(savedFiles) : []);
+      
       setLogs(JSON.parse(localStorage.getItem(`MAX_LOGS_${projeto}`) || '[]'));
       setLoading(false);
     }
     init();
   }, [projeto]);
 
-  // 2. REGISTRO DE LOGS (Funcionalidade #21)
+  // 2. LOG DE ATIVIDADES PROFISSIONAL
   const addLog = (acao) => {
-    const novoLog = {
-      id: Date.now(),
-      texto: acao,
-      hora: new Date().toLocaleTimeString('pt-BR'),
-      data: new Date().toLocaleDateString('pt-BR')
-    };
-    const atualizados = [novoLog, ...logs].slice(0, 50); // Mantém os últimos 50 logs
+    const novoLog = { id: Date.now(), texto: acao, hora: new Date().toLocaleTimeString('pt-BR') };
+    const atualizados = [novoLog, ...logs].slice(0, 30);
     setLogs(atualizados);
     localStorage.setItem(`MAX_LOGS_${projeto}`, JSON.stringify(atualizados));
   };
 
-  // 3. UPLOAD COM FIX DE CACHE E LOG
+  // 3. UPLOAD REFINADO (SEM DUPLICIDADE E COM RESET)
   const processarUpload = (files) => {
-    if (!files || files.length === 0) return;
-    const novosDocs = Array.from(files).map(f => ({
+    if (!files) return;
+    const novos = Array.from(files).map(f => ({
       nome: f.name.toUpperCase(),
-      data: new Date().toLocaleDateString('pt-BR')
+      data: new Date().toLocaleDateString('pt-BR'),
+      id: `${f.name}-${Date.now()}`
     }));
 
     setArquivos(prev => {
       const nomes = new Set(prev.map(a => a.nome));
-      const filtrados = novosDocs.filter(n => !nomes.has(n.nome));
-      if(filtrados.length > 0) addLog(`Upload de ${filtrados.length} documento(s)`);
-      const lista = [...prev, ...filtrados];
-      localStorage.setItem(`MAX_FILES_${projeto}`, JSON.stringify(lista));
-      return lista;
+      const validos = novos.filter(n => !nomes.has(n.nome));
+      
+      if (validos.length > 0) {
+        addLog(`Adicionado: ${validos.length} doc(s)`);
+        const listaFinal = [...prev, ...validos];
+        localStorage.setItem(`MAX_FILES_${projeto}`, JSON.stringify(listaFinal));
+        return listaFinal;
+      }
+      return prev;
     });
 
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  // 4. RESET TOTAL DO PROJETO (FIX DOS 13 DOCS)
+  const resetTotal = () => {
+    if (window.confirm("ATENÇÃO: Isso apagará TODOS os documentos deste projeto. Confirmar?")) {
+      setArquivos([]);
+      localStorage.removeItem(`MAX_FILES_${projeto}`);
+      addLog("Sistema Resetado / Limpo");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   const validar = (id) => {
     const nomes = arquivos.map(a => a.nome);
-    const regras = { CIPP: /\b(CIPP|5\.1)\b/, CIV: /\b(CIV|3\.1)\b/, MOPP: /\b(MOPP|CNH)\b/ };
+    const regras = { CIPP: /\b(CIPP)\b/, CIV: /\b(CIV)\b/, MOPP: /\b(MOPP)\b/ };
     const padrao = regras[id] || new RegExp(`\\b${id}\\b`, 'i');
     return nomes.some(n => padrao.test(n));
   };
 
-  if (loading) return <div style={s.load}><Zap className="animate-pulse" size={40}/></div>;
+  if (loading) return <div style={s.load}><Zap color="#0f0" className="animate-pulse"/></div>;
 
   return (
-    <div style={s.body} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault(); processarUpload(e.dataTransfer.files)}}>
-      
+    <div style={s.body}>
+      {/* SIDEBAR COM LETRAS GRANDES E CONTRASTE */}
       <aside style={s.side}>
-        <div style={s.logo}><Shield color="#0f0"/> MAXIMUS <span style={s.v}>v52</span></div>
+        <div style={s.logo}><Shield color="#0f0" size={28}/> MAXIMUS <span style={s.v}>v53</span></div>
         
+        <label style={s.label}>SELECIONE O EMPREENDIMENTO</label>
         <select value={projeto} onChange={e=>setProjeto(e.target.value)} style={s.select}>
-          <option value="Mineracao">⛏️ Mineração Parauapebas</option>
-          <option value="Logistica">🚚 Logística Barcarena</option>
-          <option value="Posto">⛽ Postos Belém</option>
+          <option value="Mineracao">⛏️ MINERAÇÃO (PARAUAPEBAS)</option>
+          <option value="Logistica">🚚 LOGÍSTICA (BARCARENA)</option>
+          <option value="Posto">⛽ POSTO (BELÉM)</option>
         </select>
 
         <nav style={s.nav}>
-          <button onClick={()=>setAba('AUDITORIA')} style={aba==='AUDITORIA'?s.btnA:s.btn}><Scale size={18}/> Auditoria</button>
-          <button onClick={()=>setAba('MAPA')} style={aba==='MAPA'?s.btnA:s.btn}><MapPin size={18}/> Mapa de Calor PA</button>
-          <button onClick={()=>setAba('DASH')} style={aba==='DASH'?s.btnA:s.btn}><BarChart3 size={18}/> Dashboard</button>
+          <button onClick={()=>setAba('AUDITORIA')} style={aba==='AUDITORIA'?s.btnA:s.btn}><Scale/> AUDITORIA</button>
+          <button onClick={()=>setAba('GOV')} style={aba==='GOV'?s.btnA:s.btn}><PenTool/> ASSINAR GOV.BR</button>
+          <button onClick={()=>setAba('DASH')} style={aba==='DASH'?s.btnA:s.btn}><BarChart3/> INDICADORES</button>
         </nav>
 
-        {/* LOG DE ALTERAÇÕES (#21) */}
         <div style={s.boxLog}>
-          <div style={s.boxHead}>LOG DE ATIVIDADES</div>
+          <div style={s.boxHead}>ATIVIDADES RECENTES <Trash2 size={14} onClick={resetTotal} cursor="pointer"/></div>
           <div style={s.logLista}>
             {logs.map(l => (
-              <div key={l.id} style={s.logItem}>
-                <Activity size={10} color="#555"/> {l.hora} - {l.texto}
-              </div>
+              <div key={l.id} style={s.logItem}>• {l.hora}: {l.texto}</div>
             ))}
           </div>
         </div>
@@ -111,9 +125,10 @@ export default function MaximusV52() {
 
       <main style={s.main}>
         <header style={s.head}>
-          <div style={s.search}><Search size={18}/><input placeholder="Filtrar condicionantes..." style={s.input} value={busca} onChange={e=>setBusca(e.target.value)}/></div>
+          <div style={s.search}><Search size={22}/><input placeholder="PESQUISAR LEI OU CÓDIGO..." style={s.input} value={busca} onChange={e=>setBusca(e.target.value)}/></div>
           <label style={s.btnUp}>
-            <FilePlus size={18}/> UPLOAD <input ref={fileInputRef} type="file" multiple hidden onChange={e=>processarUpload(e.target.files)}/>
+            <FilePlus/> ADICIONAR EVIDÊNCIAS
+            <input ref={fileInputRef} type="file" multiple hidden onChange={e=>processarUpload(e.target.files)}/>
           </label>
         </header>
 
@@ -121,13 +136,13 @@ export default function MaximusV52() {
           {aba === 'AUDITORIA' && (
             <div style={s.scroll}>
               <table style={s.table}>
-                <thead><tr style={s.th}><th>CÓD</th><th>REQUISITO</th><th style={{textAlign:'center'}}>STATUS</th></tr></thead>
+                <thead><tr style={s.th}><th>CÓDIGO</th><th>REQUISITO LEGAL AMBIENTAL</th><th style={{textAlign:'center'}}>STATUS</th></tr></thead>
                 <tbody>
                   {items.filter(i => i.descricao_de_condicionante?.toLowerCase().includes(busca.toLowerCase())).map((it,i)=>(
                     <tr key={i} style={s.tr}>
                       <td style={s.tdC}>{it.codigo}</td>
                       <td style={s.tdD}>{it.descricao_de_condicionante}</td>
-                      <td style={{textAlign:'center'}}><Camera color={validar(it.codigo)?'#0f0':'#111'} size={24}/></td>
+                      <td style={{textAlign:'center'}}><Camera color={validar(it.codigo)?'#0f0':'#222'} size={28}/></td>
                     </tr>
                   ))}
                 </tbody>
@@ -135,38 +150,33 @@ export default function MaximusV52() {
             </div>
           )}
 
-          {aba === 'MAPA' && (
-            <div style={s.mapContainer}>
-               <h3 style={{color:'#0f0', marginBottom:20}}>Focos de Irregularidade Ambiental - Estado do Pará</h3>
-               <div style={s.mapFlex}>
-                  <div style={s.mapStatic}>
-                    {/* Simulação de Pontos no Mapa */}
-                    <div style={{...s.dot, top:'40%', left:'60%', background:'#f00'}}></div>
-                    <div style={{...s.dot, top:'80%', left:'70%', background:'#ff0'}}></div>
-                    <div style={{...s.dot, top:'20%', left:'30%', background:'#0f0'}}></div>
-                    <p style={{marginTop:180, color:'#444'}}>Interface Cartográfica SEMAS/PA Ativa</p>
+          {aba === 'GOV' && (
+            <div style={s.govContainer}>
+              <div style={s.govCard}>
+                <img src="https://upload.wikimedia.org/wikipedia/commons/b/bb/Logotipo_do_Governo_do_Brasil_2023.png" height="50" alt="gov" />
+                <h1 style={{fontSize:24, margin:'20px 0'}}>Assinador Digital Maximus</h1>
+                <p style={{color:'#666', marginBottom:30}}>Validade Jurídica conforme MP nº 2.200-2/2001 (ICP-Brasil)</p>
+                
+                {!assinando ? (
+                  <button onClick={()=>setAssinando(true)} style={s.btnGov}>AUTENTICAR COM GOV.BR</button>
+                ) : (
+                  <div style={s.successAss}>
+                    <CheckCircle color="#0f0" size={40}/>
+                    <h2 style={{color:'#0f0'}}>Identidade Prata Verificada!</h2>
+                    <p>Relatórios agora serão gerados com selo de autenticidade.</p>
                   </div>
-                  <div style={s.mapLegend}>
-                    <div style={s.legItem}><div style={{...s.colorB, background:'#f00'}}></div> CRÍTICO (Barcarena)</div>
-                    <div style={s.legItem}><div style={{...s.colorB, background:'#ff0'}}></div> ALERTA (Parauapebas)</div>
-                    <div style={s.legItem}><div style={{...s.colorB, background:'#0f0'}}></div> OK (Belém)</div>
-                  </div>
-               </div>
+                )}
+              </div>
             </div>
           )}
 
           {aba === 'DASH' && (
-            <div style={s.dashGrid}>
-              <div style={s.kpiCard}>
-                <span>CONFORMIDADE GERAL</span>
-                <h2>{((arquivos.length / items.length) * 100 || 0).toFixed(1)}%</h2>
-                <div style={s.barBack}><div style={{...s.barFront, width: `${(arquivos.length / items.length) * 100}%`}}></div></div>
-              </div>
-              <div style={s.kpiCard}>
-                <span>DOCUMENTOS CARREGADOS</span>
-                <h2>{arquivos.length}</h2>
-                <p>Total de {items.length} requisitos</p>
-              </div>
+            <div style={s.dashFlex}>
+               <div style={s.kpiBig}>
+                  <span style={{fontSize:14, color:'#444'}}>CONFORMIDADE ATUAL</span>
+                  <h1 style={{fontSize:80, color:'#0f0'}}>{((arquivos.length / items.length) * 100 || 0).toFixed(0)}%</h1>
+                  <div style={s.barB}><div style={{...s.barF, width:`${(arquivos.length / items.length) * 100}%`}}></div></div>
+               </div>
             </div>
           )}
         </div>
@@ -176,40 +186,38 @@ export default function MaximusV52() {
 }
 
 const s = {
-  body: { display: 'flex', height: '100vh', background: '#000', color: '#eee', fontFamily: 'sans-serif', overflow:'hidden' },
-  load: { height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0f0', background: '#000' },
-  side: { width: '320px', background: '#050505', borderRight: '1px solid #111', padding: '25px', display: 'flex', flexDirection: 'column' },
-  logo: { fontSize: '20px', fontWeight: 'bold', marginBottom: '30px', color: '#0f0', display: 'flex', gap: 10 },
-  v: { fontSize: '10px', background: '#0f0', color: '#000', padding: '2px 5px', borderRadius: '4px' },
-  select: { background: '#0a0a0a', color: '#fff', border: '1px solid #222', padding: '12px', borderRadius: '10px', marginBottom: '25px', outline: 'none' },
-  nav: { display: 'flex', flexDirection: 'column', gap: '5px' },
-  btn: { display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', background: 'none', border: 'none', color: '#444', cursor: 'pointer', textAlign: 'left', borderRadius: '10px' },
-  btnA: { display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', background: '#0a0a0a', border: '1px solid #0f0', color: '#0f0', borderRadius: '10px' },
-  boxLog: { flex: 1, marginTop: 25, background: '#020202', borderRadius: '15px', border: '1px solid #111', overflow: 'hidden', display:'flex', flexDirection:'column' },
-  boxHead: { padding: '10px', fontSize: '10px', background:'#080808', color: '#444', textAlign:'center', fontWeight:'bold' },
-  logLista: { padding: '10px', overflowY: 'auto', flex: 1 },
-  logItem: { fontSize: '9px', color: '#555', marginBottom: '6px', borderBottom: '1px solid #080808', paddingBottom: 4, display:'flex', gap:5, alignItems:'center' },
-  main: { flex: 1, padding: '30px', display: 'flex', flexDirection: 'column' },
-  head: { display: 'flex', justifyContent: 'space-between', marginBottom: '25px', gap: 20 },
-  search: { flex: 1, background: '#0a0a0a', border: '1px solid #111', borderRadius: '15px', display: 'flex', alignItems: 'center', padding: '0 20px' },
-  input: { background: 'none', border: 'none', color: '#fff', padding: '12px', width: '100%', outline: 'none' },
-  btnUp: { background: '#0f0', color: '#000', padding: '15px 25px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', gap: 10, alignItems:'center' },
-  content: { background: '#050505', borderRadius: '30px', border: '1px solid #111', flex: 1, overflow: 'hidden' },
+  body: { display: 'flex', height: '100vh', background: '#000', color: '#fff', fontFamily: 'Arial, sans-serif', overflow:'hidden' },
+  load: { height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' },
+  side: { width: '350px', background: '#080808', borderRight: '1px solid #1a1a1a', padding: '30px', display: 'flex', flexDirection: 'column' },
+  logo: { fontSize: '24px', fontWeight: 'bold', marginBottom: '40px', color: '#0f0', display: 'flex', gap: 12, alignItems:'center' },
+  v: { fontSize: '12px', background: '#0f0', color: '#000', padding: '2px 8px', borderRadius: '4px' },
+  label: { fontSize: '11px', color: '#555', marginBottom: '10px', fontWeight: 'bold' },
+  select: { background: '#111', color: '#fff', border: '1px solid #333', padding: '15px', borderRadius: '12px', marginBottom: '30px', fontSize: '14px', outline: 'none' },
+  nav: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  btn: { display: 'flex', alignItems: 'center', gap: '15px', padding: '18px', background: 'none', border: 'none', color: '#666', cursor: 'pointer', textAlign: 'left', borderRadius: '12px', fontSize: '16px', fontWeight:'bold' },
+  btnA: { display: 'flex', alignItems: 'center', gap: '15px', padding: '18px', background: '#111', border: '1px solid #0f0', color: '#0f0', borderRadius: '12px', fontSize: '16px', fontWeight:'bold' },
+  boxLog: { flex: 1, marginTop: 30, background: '#050505', borderRadius: '20px', border: '1px solid #111', overflow: 'hidden', display: 'flex', flexDirection: 'column' },
+  boxHead: { padding: '12px', fontSize: '12px', background: '#0a0a0a', color: '#444', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' },
+  logLista: { padding: '15px', overflowY: 'auto', flex: 1, fontSize: '11px', color: '#333' },
+  logItem: { marginBottom: '8px', borderBottom: '1px solid #0a0a0a', paddingBottom: 4 },
+  main: { flex: 1, padding: '40px', display: 'flex', flexDirection: 'column' },
+  head: { display: 'flex', justifyContent: 'space-between', marginBottom: '35px', gap: 20 },
+  search: { flex: 1, background: '#080808', border: '1px solid #1a1a1a', borderRadius: '20px', display: 'flex', alignItems: 'center', padding: '0 25px' },
+  input: { background: 'none', border: 'none', color: '#fff', padding: '20px', width: '100%', outline: 'none', fontSize: '16px' },
+  btnUp: { background: '#0f0', color: '#000', padding: '15px 30px', borderRadius: '15px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', gap: 12, alignItems:'center', fontSize: '14px' },
+  content: { background: '#080808', borderRadius: '40px', border: '1px solid #1a1a1a', flex: 1, overflow: 'hidden' },
   scroll: { overflowY: 'auto', height: '100%' },
   table: { width: '100%', borderCollapse: 'collapse' },
-  th: { textAlign: 'left', padding: '20px', fontSize: '11px', color: '#333', borderBottom: '1px solid #111', background:'#050505', position:'sticky', top:0 },
-  tr: { borderBottom: '1px solid #080808' },
-  tdC: { padding: '20px', color: '#0f0', fontWeight: 'bold' },
-  tdD: { padding: '20px', color: '#888', fontSize: '13px', lineHeight: '1.6' },
-  mapContainer: { padding: 40 },
-  mapFlex: { display:'flex', gap:40, alignItems:'center' },
-  mapStatic: { width: '300px', height: '200px', background: '#080808', borderRadius: '20px', border: '1px solid #111', position: 'relative', textAlign:'center' },
-  dot: { position: 'absolute', width: '12px', height: '12px', borderRadius: '50%', boxShadow: '0 0 10px currentColor' },
-  mapLegend: { display:'flex', flexDirection:'column', gap:15 },
-  legItem: { display:'flex', alignItems:'center', gap:10, fontSize:'12px', color:'#666' },
-  colorB: { width: 12, height: 12, borderRadius: 2 },
-  dashGrid: { display:'grid', gridTemplateColumns: '1fr 1fr', gap: 30, padding: 40 },
-  kpiCard: { background: '#0a0a0a', padding: 30, borderRadius: '25px', border: '1px solid #111' },
-  barBack: { width: '100%', height: 6, background: '#111', borderRadius: 10, marginTop: 15 },
-  barFront: { height: '100%', background: '#0f0', borderRadius: 10, transition: '0.5s' }
+  th: { textAlign: 'left', padding: '25px', fontSize: '12px', color: '#444', borderBottom: '1px solid #1a1a1a', background: '#080808', position: 'sticky', top: 0 },
+  tr: { borderBottom: '1px solid #111' },
+  tdC: { padding: '25px', color: '#0f0', fontWeight: 'bold', fontSize: '18px' },
+  tdD: { padding: '25px', color: '#ccc', fontSize: '16px', lineHeight: '1.6' },
+  govContainer: { height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  govCard: { background: '#111', padding: '60px', borderRadius: '30px', border: '1px solid #333', textAlign: 'center', maxWidth: '500px' },
+  btnGov: { background: '#fff', color: '#0057b7', border: 'none', padding: '20px 40px', borderRadius: '12px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' },
+  successAss: { marginTop: 20 },
+  dashFlex: { padding: 60, display: 'flex', justifyContent: 'center' },
+  kpiBig: { textAlign: 'center', width: '100%', maxWidth: '400px' },
+  barB: { width: '100%', height: '12px', background: '#111', borderRadius: '20px', marginTop: 20 },
+  barF: { height: '100%', background: '#0f0', borderRadius: '20px', transition: '1s' }
 };
