@@ -36,7 +36,6 @@ export default function MaximusPhD() {
     fetchData();
   }, []);
 
-  // FUNÇÃO DE IMPRESSÃO (O BOTÃO "PDF TELA" DO SEU PRINT)
   const imprimirTabela = () => {
     const doc = new jsPDF();
     doc.text("Relatório de Auditoria - Maximus PhD", 14, 15);
@@ -66,7 +65,6 @@ export default function MaximusPhD() {
 
   return (
     <div style={s.app}>
-      {/* SIDEBAR COM NOVO LAYOUT */}
       <aside style={s.sidebar}>
         <div style={s.logo}><ShieldCheck color="#25d366" size={24}/> MAXIMUS PhD</div>
         
@@ -93,7 +91,6 @@ export default function MaximusPhD() {
         </div>
       </aside>
 
-      {/* CONTEÚDO PRINCIPAL */}
       <main style={s.main}>
         <header style={s.header}>
           <div style={s.searchBox}>
