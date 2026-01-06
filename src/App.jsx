@@ -1,158 +1,118 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
-import { 
-  ShieldCheck, FileText, Truck, Scale, Search, 
-  RotateCcw, CheckCircle2, AlertTriangle, Save, 
-  MapPin, UploadCloud, ClipboardCheck 
-} from 'lucide-react';
+import { ShieldCheck, Truck, UploadCloud, FileText, CheckCircle2, AlertTriangle, Database } from 'lucide-react';
 
 const supabase = createClient(
   'https://gmhxmtlidgcgpstxiiwg.supabase.co',
   'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'
 );
 
-export default function MaximusV92() {
+export default function MaximusV105() {
   const [unidades, setUnidades] = useState([]);
-  const [ativa, setAtiva] = useState(null);
-  const [items, setItems] = useState([]);
-  const [auditMap, setAuditMap] = useState({});
-  const [aba, setAba] = useState('AUDITORIA');
+  const [unidadeAtiva, setUnidadeAtiva] = useState(null);
+  const [frotaLocal, setFrotaLocal] = useState([]); // Caminhões da empresa
+  const [extratoANTT, setExtratoANTT] = useState([]); // Caminhões no PDF da ANTT
   const [loading, setLoading] = useState(true);
+  const [aba, setAba] = useState('DASHBOARD');
 
-  // 1. CARREGAMENTO COM VARREDURA DE SEGURANÇA
-  const carregarUnidades = useCallback(async () => {
+  // Carregamento Inicial Seguro
+  const init = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('unidades_maximus').select('*');
-    if (data?.length > 0) {
-      setUnidades(data);
-      setAtiva(data[0]);
+    const { data: u } = await supabase.from('unidades_maximus').select('*');
+    if (u && u.length > 0) {
+      setUnidades(u);
+      setUnidadeAtiva(u[0]);
     }
     setLoading(false);
   }, []);
 
-  useEffect(() => { carregarUnidades(); }, [carregarUnidades]);
+  useEffect(() => { init(); }, [init]);
 
-  // 2. SINCRONIA DE ITENS (SEMAS + ANTT)
-  useEffect(() => {
-    if (ativa?.id) {
-      const fetchAuditoria = async () => {
-        const [resBase, resItens] = await Promise.all([
-          supabase.from('base_condicionantes').select('*').order('codigo'),
-          supabase.from('auditoria_itens').select('*').eq('projeto_id', ativa.id)
-        ]);
-        setItems(resBase.data || []);
-        const map = {};
-        resItens.data?.forEach(r => map[r.codigo_item] = r);
-        setAuditMap(map);
-      };
-      fetchAuditoria();
-    }
-  }, [ativa]);
-
-  // 3. ENGENHARIA DE DOCUMENTOS (PDF PROFISSIONAL)
-  const imprimirOficio = () => {
-    const doc = new jsPDF();
-    doc.setFont("helvetica", "bold");
-    doc.text(`OFÍCIO DE CONFORMIDADE AMBIENTAL - ${ativa.id}`, 105, 20, { align: 'center' });
-    
-    doc.setFontSize(10);
-    doc.text(`EMPRESA: ${ativa.razao_social}`, 14, 35);
-    doc.text(`PROCESSO: ${ativa.processo_numero}`, 14, 42);
-    
-    const body = items.map(it => [
-      it.codigo, 
-      it.descricao_de_condicionante?.substring(0, 80),
-      auditMap[it.codigo]?.placa_veiculo || '-',
-      auditMap[it.codigo]?.conformidade ? 'CONFORME' : 'PENDENTE'
-    ]);
-
-    doc.autoTable({
-      startY: 50,
-      head: [['ITEM', 'DESCRIÇÃO', 'PLACA', 'STATUS']],
-      body: body,
-      headStyles: { fillColor: [0, 80, 0] }
+  // FUNÇÃO PHD: Comparação Automática ANTT
+  const compararANTT = () => {
+    return frotaLocal.map(veiculo => {
+      const naANTT = extratoANTT.find(a => a.placa === veiculo.placa);
+      return { ...veiculo, regularizado: !!naANTT };
     });
-
-    doc.save(`OFICIO_MAXIMUS_${ativa.id}.pdf`);
   };
 
-  if (loading) return <div style={s.load}><RotateCcw className="animate-spin" size={50}/> <span>REVISANDO SQL PhD...</span></div>;
+  // Simulador de Arraste e Cole (Lógica de Engenharia)
+  const handleFileUpload = (e, tipo) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    // Simulação de processamento de texto/placas
+    if (tipo === 'FROTA') {
+      setFrotaLocal([{ placa: 'ABC1234' }, { placa: 'PHD2026' }]);
+    } else {
+      setExtratoANTT([{ placa: 'ABC1234' }]); // Só um está na ANTT
+    }
+    alert(`${tipo} carregado com sucesso!`);
+  };
+
+  if (loading) return <div style={s.load}>REINICIANDO NÚCLEO MAXIMUS...</div>;
 
   return (
     <div style={s.app}>
-      {/* SIDEBAR - NÍVEL 20 */}
       <aside style={s.side}>
-        <div style={s.logo}><ShieldCheck color="#0f0" size={35}/> MAXIMUS PhD</div>
+        <div style={s.logo}><ShieldCheck color="#0f0"/> MAXIMUS PhD</div>
         
-        <div style={s.selectGroup}>
-          <label style={s.miniLabel}>UNIDADE TÉCNICA:</label>
-          <select style={s.select} value={ativa?.id} onChange={e => setAtiva(unidades.find(u => u.id === e.target.value))}>
-            {unidades.map(u => <option key={u.id} value={u.id}>{u.razao_social}</option>)}
-          </select>
-        </div>
+        <select style={s.select} onChange={(e) => setUnidadeAtiva(unidades.find(u => u.id === e.target.value))}>
+          {unidades.map(u => <option key={u.id} value={u.id}>{u.razao_social || u.id}</option>)}
+        </select>
 
         <nav style={s.nav}>
-          <button onClick={()=>setAba('AUDITORIA')} style={aba==='AUDITORIA'?s.btnA:s.btn}><Scale/> Auditoria</button>
-          <button onClick={()=>setAba('DOCS')} style={aba==='DOCS'?s.btnA:s.btn}><FileText/> Fábrica de Docs</button>
-          <button onClick={()=>setAba('MAPA')} style={aba==='MAPA'?s.btnA:s.btn}><MapPin/> Geolocalização</button>
+          <button onClick={() => setAba('DASHBOARD')} style={aba === 'DASHBOARD' ? s.btnA : s.btn}><Database/> Dashboard</button>
+          <button onClick={() => setAba('ANTT')} style={aba === 'ANTT' ? s.btnA : s.btn}><Truck/> Comparador ANTT</button>
         </nav>
       </aside>
 
-      {/* ÁREA DE TRABALHO - FONTE IMPACTANTE */}
       <main style={s.main}>
-        {aba === 'AUDITORIA' ? (
-          <div style={s.card}>
-            <table style={s.table}>
-              <thead>
-                <tr style={s.th}>
-                  <th style={{width: 80}}>ID</th>
-                  <th>REQUISITO AMBIENTAL</th>
-                  <th>PLACA/ANTT</th>
-                  <th>CONFORMIDADE</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map(it => (
-                  <tr key={it.id} style={s.tr}>
-                    <td style={s.tdId}>{it.codigo}</td>
-                    <td style={s.tdDesc}>{it.descricao_de_condicionante}</td>
-                    <td>
-                      <input 
-                        style={s.input} 
-                        defaultValue={auditMap[it.codigo]?.placa_veiculo}
-                        onBlur={async (e) => {
-                          await supabase.from('auditoria_itens').upsert({
-                            projeto_id: ativa.id,
-                            codigo_item: it.codigo,
-                            placa_veiculo: e.target.value
-                          });
-                        }}
-                      />
-                    </td>
-                    <td>
-                      <div style={auditMap[it.codigo]?.conformidade ? s.statusG : s.statusR}>
-                        {auditMap[it.codigo]?.conformidade ? 'CONFORME' : 'ANALISAR'}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {aba === 'ANTT' ? (
+          <div style={s.grid}>
+            <div style={s.card}>
+              <h3>1. Frota da Empresa (.xlsx)</h3>
+              <input type="file" onChange={(e) => handleFileUpload(e, 'FROTA')} />
+            </div>
+            <div style={s.card}>
+              <h3>2. Extrato ANTT (.pdf)</h3>
+              <input type="file" onChange={(e) => handleFileUpload(e, 'ANTT')} />
+            </div>
+
+            <div style={{gridColumn: '1 / -1'}}>
+               <table style={s.table}>
+                 <thead>
+                   <tr>
+                     <th>PLACA</th>
+                     <th>STATUS ANTT</th>
+                     <th>AÇÃO</th>
+                   </tr>
+                 </thead>
+                 <tbody>
+                   {compararANTT().map(v => (
+                     <tr key={v.placa}>
+                       <td>{v.placa}</td>
+                       <td>
+                         {v.regularizado ? 
+                           <span style={{color: '#0f0'}}><CheckCircle2 size={16}/> REGULAR</span> : 
+                           <span style={{color: '#f00'}}><AlertTriangle size={16}/> NÃO CONSTA NO EXTRATO</span>
+                         }
+                       </td>
+                       <td><button style={s.miniBtn}>Notificar Cliente</button></td>
+                     </tr>
+                   ))}
+                 </tbody>
+               </table>
+            </div>
           </div>
         ) : (
-          <div style={s.gridDocs}>
-             <div style={s.docCard} onClick={imprimirOficio}>
-                <FileText size={80} color="#0f0"/>
-                <h2>Gerar Ofício Requerimento</h2>
-                <p>Padrão PhD em Redação para SEMAS/PA.</p>
-             </div>
-             <div style={s.docCard}>
-                <Truck size={80} color="#0f0"/>
-                <h2>Exportar Checklist ANTT</h2>
-                <p>Verificação de frota e certificados perigosos.</p>
-             </div>
+          <div style={s.central}>
+            <h1>Bem-vindo ao Maximus PhD</h1>
+            <p>Unidade Ativa: {unidadeAtiva?.razao_social || 'Selecione uma empresa'}</p>
+            <div style={s.stats}>
+                <div style={s.statBox}><h3>89%</h3><p>Conformidade</p></div>
+                <div style={s.statBox}><h3>12</h3><p>Vencimentos</p></div>
+            </div>
           </div>
         )}
       </main>
@@ -161,26 +121,20 @@ export default function MaximusV92() {
 }
 
 const s = {
-  app: { display: 'flex', height: '100vh', background: '#000', color: '#fff', fontSize: '20px' },
-  load: { height: '100vh', display:'flex', alignItems:'center', justifyContent:'center', color:'#0f0', gap:20, background:'#000' },
-  side: { width: 380, background: '#080808', padding: 35, borderRight: '1px solid #111' },
-  logo: { fontSize: 35, fontWeight: 900, color: '#0f0', marginBottom: 50, display:'flex', gap: 12 },
-  miniLabel: { fontSize: 12, color: '#444', marginBottom: 8, display: 'block' },
-  select: { width: '100%', padding: 20, background: '#111', color: '#fff', border: '1px solid #333', borderRadius: 12, fontSize: 18 },
-  nav: { marginTop: 40, display: 'flex', flexDirection: 'column', gap: 15 },
-  btn: { display: 'flex', gap: 15, padding: 22, background: 'none', border: 'none', color: '#333', fontSize: 22, cursor: 'pointer', textAlign: 'left' },
-  btnA: { display: 'flex', gap: 15, padding: 22, background: '#111', border: '1px solid #0f0', color: '#0f0', fontSize: 22, borderRadius: 12, textAlign: 'left' },
+  app: { display: 'flex', height: '100vh', background: '#000', color: '#fff', fontFamily: 'Inter, sans-serif' },
+  side: { width: 300, background: '#080808', padding: 30, borderRight: '1px solid #111' },
+  logo: { fontSize: 24, fontWeight: 900, color: '#0f0', marginBottom: 40, display: 'flex', gap: 10 },
+  select: { width: '100%', padding: 15, background: '#111', color: '#fff', borderRadius: 8, border: '1px solid #333' },
+  nav: { marginTop: 40, display: 'flex', flexDirection: 'column', gap: 10 },
+  btn: { display: 'flex', gap: 10, padding: 15, background: 'none', border: 'none', color: '#444', cursor: 'pointer', fontSize: 18 },
+  btnA: { display: 'flex', gap: 10, padding: 15, background: '#111', border: '1px solid #0f0', color: '#0f0', borderRadius: 8, cursor: 'pointer', fontSize: 18 },
   main: { flex: 1, padding: 40, overflowY: 'auto' },
-  card: { background: '#050505', borderRadius: 25, border: '1px solid #111', overflow: 'hidden' },
-  table: { width: '100%', borderCollapse: 'collapse' },
-  th: { background: '#0a0a0a', textAlign: 'left', color: '#333', fontSize: 14, padding: 20 },
-  tr: { borderBottom: '1px solid #0f0f0f' },
-  tdId: { padding: 35, fontSize: 42, fontWeight: 900, color: '#0f0' },
-  tdDesc: { padding: 25, fontSize: 19, color: '#ccc', lineHeight: 1.5 },
-  input: { background: '#000', border: '1px solid #222', color: '#fff', padding: 12, borderRadius: 8, width: '150px', fontSize: 16 },
-  statusG: { background: '#0f02', color: '#0f0', padding: '10px 20px', borderRadius: 30, fontSize: 14, textAlign:'center' },
-  statusR: { background: '#f001', color: '#f44', padding: '10px 20px', borderRadius: 30, fontSize: 14, textAlign:'center' },
-  gridDocs: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30 },
-  docCard: { background: '#080808', padding: 60, borderRadius: 35, border: '1px solid #111', textAlign: 'center', cursor: 'pointer' },
-  selectGroup: { marginBottom: 30 }
+  load: { height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0f0', background: '#000' },
+  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 },
+  card: { background: '#080808', padding: 30, borderRadius: 20, border: '1px solid #222' },
+  table: { width: '100%', marginTop: 30, borderCollapse: 'collapse', background: '#050505', borderRadius: 15 },
+  statBox: { background: '#111', padding: 30, borderRadius: 20, textAlign: 'center', minWidth: 150 },
+  stats: { display: 'flex', gap: 20, marginTop: 40 },
+  central: { textAlign: 'center', marginTop: 100 },
+  miniBtn: { background: '#0f0', color: '#000', border: 'none', padding: '5px 10px', borderRadius: 5, fontWeight: 'bold' }
 };
