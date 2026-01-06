@@ -1,119 +1,118 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import * as pdfjsLib from 'pdfjs-dist';
-import { Share2, AlertTriangle, CheckCircle, Calendar, Upload } from 'lucide-react';
+import { UploadCloud, CheckCircle, FileText, AlertTriangle, Zap, Share2 } from 'lucide-react';
 
-const supabase = createClient('SUA_URL', 'SUA_KEY');
+const supabase = createClient('SUA_URL_SUPABASE', 'SUA_CHAVE_ANON');
 
-export default function MaximusSistemaCompleto() {
-  const [frota, setFrota] = useState([]);
-  const [vencendoMes, setVencendoMes] = useState(0);
-  const [irregularidades, setIrregularidades] = useState([]);
-  const [loading, setLoading] = useState(false);
+export default function MaximusIntegradorUniversal() {
+  const [isClient, setIsClient] = useState(false);
+  const [logs, setLogs] = useState([]);
+  const [vencimentos, setVencimentos] = useState(0);
 
-  // 1. DASHBOARD: BUSCA VENCIMENTOS DO MÊS
-  const carregarDashboard = async () => {
-    const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-    const fimMes = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString();
+  useEffect(() => {
+    setIsClient(true); // Mata o erro #418 do React/Vercel
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+    buscarResumo();
+  }, []);
 
-    const { data, count } = await supabase
-      .from('frota_veiculos')
-      .select('*', { count: 'exact' })
-      .gte('vencimento_rntrc', inicioMes)
-      .lte('vencimento_rntrc', fimMes);
-
-    setVencendoMes(count || 0);
-    setFrota(data || []);
+  const buscarResumo = async () => {
+    const { count } = await supabase.from('frota_veiculos').select('*', { count: 'exact' });
+    setVencimentos(count || 0);
   };
 
-  useEffect(() => { carregarDashboard(); }, []);
+  // MOTOR DE VARREDURA PhD (Arraste e Cole Geral)
+  const processarArquivos = async (files) => {
+    const lista = Array.from(files);
+    
+    for (const file of lista) {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const typedarray = new Uint8Array(reader.result);
+        const pdf = await pdfjsLib.getDocument(typedarray).promise;
+        let textoCompleto = "";
 
-  // 2. COMPARADOR ANTT (OCR + BANCO)
-  const processarComparacao = async (file) => {
-    setLoading(true);
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const typedarray = new Uint8Array(reader.result);
-      const pdf = await pdfjsLib.getDocument(typedarray).promise;
-      let textoTotal = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          textoCompleto += content.items.map(s => s.str).join(" ");
+        }
 
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        textoTotal += content.items.map(s => s.str).join(" ");
-      }
-
-      const placasNoPDF = textoTotal.match(/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/g) || [];
-      const { data: frotaCadastrada } = await supabase.from('frota_veiculos').select('placa');
-      
-      const faltantes = frotaCadastrada
-        .map(v => v.placa)
-        .filter(p => !placasNoPDF.includes(p));
-
-      setIrregularidades(faltantes);
-      setLoading(false);
-    };
-    reader.readAsArrayBuffer(file);
+        classificarESalvar(textoCompleto, file.name);
+      };
+      reader.readAsArrayBuffer(file);
+    }
   };
 
-  // 3. WHATSAPP: NOTIFICAÇÃO PROFISSIONAL
-  const enviarZap = (placa) => {
-    const msg = `🚨 *Maximus PhD Informa:*%0A%0AVeículo placa *${placa}* não identificado no extrato ANTT.%0AFavor verificar regularidade imediatamente.`;
-    window.open(`https://wa.me/55NUMERO?text=${msg}`, '_blank');
+  const classificarESalvar = async (texto, nome) => {
+    let info = { tipo: "Outros", dados: {} };
+
+    // Lógica para CRLV (Ex: Placas TVO9D07 / TVO9D17)
+    if (texto.includes("CERTIFICADO DE REGISTRO") || texto.includes("RENAVAM")) {
+      info.tipo = "CRLV";
+      info.dados.placa = texto.match(/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/g)?.[0];
+      info.dados.renavam = texto.match(/\d{11}/)?.[0];
+    }
+    // Lógica para Nota Fiscal Randon (Ex: Chassi BADY...)
+    else if (texto.includes("DANFE") || texto.includes("RANDON")) {
+      info.tipo = "NOTA_FISCAL";
+      info.dados.chassi = texto.match(/[A-Z0-9]{17}/)?.[0];
+    }
+    // Lógica para SEMAS/OFÍCIO (Ex: Processo 2025/...)
+    else if (texto.includes("SEMAS") || texto.includes("Processo")) {
+      info.tipo = "SEMAS/OFICIO";
+      info.dados.processo = texto.match(/\d{4}\/\d+/)?.[0];
+    }
+
+    // Salva o processamento no banco PhD
+    await supabase.from('documentos_processados').insert([{
+      nome_arquivo: nome,
+      tipo_doc: info.tipo,
+      dados_extraidos: info.dados
+    }]);
+
+    setLogs(prev => [`✅ ${info.tipo} processado: ${nome}`, ...prev]);
   };
+
+  if (!isClient) return null;
 
   return (
-    <div className="bg-black text-white min-h-screen p-8">
-      {/* SEÇÃO CARDS DASHBOARD */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-        <div className="bg-zinc-900 p-6 rounded-xl border-l-4 border-green-500">
-          <div className="flex justify-between items-center">
-            <Calendar className="text-green-500" />
-            <span className="text-3xl font-bold">{vencendoMes}</span>
+    <div className="bg-black min-h-screen text-white p-6 font-sans">
+      {/* HEADER DASHBOARD */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div className="bg-zinc-900 border-l-4 border-green-500 p-6 rounded-xl">
+          <p className="text-zinc-400 text-sm">Veículos na Frota</p>
+          <h2 className="text-3xl font-bold">{vencimentos}</h2>
+        </div>
+        <div className="bg-zinc-900 border-l-4 border-blue-500 p-6 rounded-xl">
+          <p className="text-zinc-400 text-sm">Documentos Lidos (IA)</p>
+          <h2 className="text-3xl font-bold">{logs.length}</h2>
+        </div>
+      </div>
+
+      {/* ÁREA DE ARRASTE E COLE UNIVERSAL */}
+      <div 
+        onDrop={(e) => { e.preventDefault(); processarArquivos(e.dataTransfer.files); }}
+        onDragOver={(e) => e.preventDefault()}
+        className="bg-zinc-900 border-2 border-dashed border-zinc-700 p-16 rounded-3xl text-center hover:border-green-500 transition-all"
+      >
+        <UploadCloud className="mx-auto text-green-500 mb-4" size={50} />
+        <h2 className="text-2xl font-bold mb-2">Arraste e Cole PhD</h2>
+        <p className="text-zinc-500">Solte aqui CRLVs, Notas Fiscais, Ofícios ou Extratos ANTT</p>
+      </div>
+
+      {/* LOG DE ATIVIDADES EM TEMPO REAL */}
+      <div className="mt-8 space-y-3">
+        <h3 className="flex items-center gap-2 text-zinc-400 font-bold uppercase text-xs tracking-widest">
+          <Zap size={14} className="text-yellow-500" /> Fluxo de Dados Ativo
+        </h3>
+        {logs.map((log, index) => (
+          <div key={index} className="bg-zinc-900/50 p-4 rounded-lg border border-zinc-800 flex justify-between items-center animate-in slide-in-from-left">
+            <span className="text-sm font-mono">{log}</span>
+            <CheckCircle size={18} className="text-green-500" />
           </div>
-          <p className="mt-2 text-zinc-400">RNTRC Vencendo este Mês</p>
-        </div>
+        ))}
       </div>
-
-      {/* SEÇÃO COMPARADOR ANTT */}
-      <div className="bg-zinc-900 p-8 rounded-2xl border border-zinc-800 mb-8 text-center">
-        <Upload className="mx-auto mb-4 text-green-500" size={40} />
-        <h2 className="text-xl font-bold mb-2">Arraste o Extrato ANTT (.pdf)</h2>
-        <input type="file" onChange={(e) => processarComparacao(e.target.files[0])} className="hidden" id="pdfInput" />
-        <label htmlFor="pdfInput" className="bg-green-600 px-6 py-2 rounded-lg cursor-pointer hover:bg-green-500">
-          {loading ? "Processando..." : "Selecionar Arquivo"}
-        </label>
-      </div>
-
-      {/* RESULTADO DA VARREDURA */}
-      {irregularidades.length > 0 && (
-        <div className="bg-zinc-900 rounded-xl overflow-hidden border border-red-900/50">
-          <table className="w-full text-left">
-            <thead className="bg-zinc-800 text-zinc-400 text-xs uppercase">
-              <tr>
-                <th className="p-4">Placa</th>
-                <th className="p-4">Status</th>
-                <th className="p-4 text-right">Ação</th>
-              </tr>
-            </thead>
-            <tbody>
-              {irregularidades.map(placa => (
-                <tr key={placa} className="border-t border-zinc-800">
-                  <td className="p-4 font-mono font-bold">{placa}</td>
-                  <td className="p-4 text-red-500 flex items-center gap-2">
-                    <AlertTriangle size={16} /> NÃO CONSTA NO EXTRATO
-                  </td>
-                  <td className="p-4 text-right">
-                    <button onClick={() => enviarZap(placa)} className="bg-green-600 p-2 rounded-md hover:bg-green-500">
-                      <Share2 size={18} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }
