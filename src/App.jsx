@@ -1,92 +1,94 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import * as pdfjsLib from 'pdfjs-dist';
-import { UploadCloud, CheckCircle, FileText, AlertTriangle, Zap, Share2 } from 'lucide-react';
+import { UploadCloud, CheckCircle, Zap, FileText, AlertCircle } from 'lucide-react';
 
-const supabase = createClient('SUA_URL_SUPABASE', 'SUA_CHAVE_ANON');
+// --- COLOQUE SUAS CHAVES AQUI ---
+const supabase = createClient(
+  'SUA_URL_DO_SUPABASE', 
+  'SUA_CHAVE_ANON_PUBLIC'
+);
 
-export default function MaximusIntegradorUniversal() {
+export default function MaximusSistemaPhD() {
   const [isClient, setIsClient] = useState(false);
   const [logs, setLogs] = useState([]);
-  const [vencimentos, setVencimentos] = useState(0);
+  const [stats, setStats] = useState({ frota: 0, docs: 0 });
 
+  // Resolve erro #418 e inicia Worker do PDF
   useEffect(() => {
-    setIsClient(true); // Mata o erro #418 do React/Vercel
+    setIsClient(true);
     pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-    buscarResumo();
+    atualizarDashboard();
   }, []);
 
-  const buscarResumo = async () => {
-    const { count } = await supabase.from('frota_veiculos').select('*', { count: 'exact' });
-    setVencimentos(count || 0);
+  const atualizarDashboard = async () => {
+    const { count: f } = await supabase.from('frota_veiculos').select('*', { count: 'exact' });
+    const { count: d } = await supabase.from('documentos_processados').select('*', { count: 'exact' });
+    setStats({ frota: f || 0, docs: d || 0 });
   };
 
-  // MOTOR DE VARREDURA PhD (Arraste e Cole Geral)
   const processarArquivos = async (files) => {
     const lista = Array.from(files);
-    
     for (const file of lista) {
       const reader = new FileReader();
       reader.onload = async () => {
         const typedarray = new Uint8Array(reader.result);
         const pdf = await pdfjsLib.getDocument(typedarray).promise;
-        let textoCompleto = "";
-
+        let texto = "";
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const content = await page.getTextContent();
-          textoCompleto += content.items.map(s => s.str).join(" ");
+          texto += content.items.map(s => s.str).join(" ");
         }
-
-        classificarESalvar(textoCompleto, file.name);
+        classificarIA(texto, file.name);
       };
       reader.readAsArrayBuffer(file);
     }
   };
 
-  const classificarESalvar = async (texto, nome) => {
-    let info = { tipo: "Outros", dados: {} };
+  const classificarIA = async (texto, nome) => {
+    let detectado = { tipo: "Outros", dados: {} };
 
-    // Lógica para CRLV (Ex: Placas TVO9D07 / TVO9D17)
-    if (texto.includes("CERTIFICADO DE REGISTRO") || texto.includes("RENAVAM")) {
-      info.tipo = "CRLV";
-      info.dados.placa = texto.match(/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/g)?.[0];
-      info.dados.renavam = texto.match(/\d{11}/)?.[0];
-    }
-    // Lógica para Nota Fiscal Randon (Ex: Chassi BADY...)
+    // Identifica CRLV (Placas TVO)
+    if (texto.includes("RENAVAM") || texto.includes("LICENCIAMENTO")) {
+      detectado.tipo = "CRLV";
+      detectado.dados.placa = texto.match(/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/g)?.[0];
+    } 
+    // Identifica Nota Fiscal (Chassis BADY)
     else if (texto.includes("DANFE") || texto.includes("RANDON")) {
-      info.tipo = "NOTA_FISCAL";
-      info.dados.chassi = texto.match(/[A-Z0-9]{17}/)?.[0];
+      detectado.tipo = "NOTA FISCAL";
+      detectado.dados.chassi = texto.match(/[A-Z0-9]{17}/)?.[0];
     }
-    // Lógica para SEMAS/OFÍCIO (Ex: Processo 2025/...)
+    // Identifica SEMAS (Processo 2025/...)
     else if (texto.includes("SEMAS") || texto.includes("Processo")) {
-      info.tipo = "SEMAS/OFICIO";
-      info.dados.processo = texto.match(/\d{4}\/\d+/)?.[0];
+      detectado.tipo = "SEMAS/OFICIO";
+      detectado.dados.processo = texto.match(/\d{4}\/\d+/g)?.[0];
     }
 
-    // Salva o processamento no banco PhD
+    // Salva no Supabase
     await supabase.from('documentos_processados').insert([{
       nome_arquivo: nome,
-      tipo_doc: info.tipo,
-      dados_extraidos: info.dados
+      tipo_doc: detectado.tipo,
+      dados_extraidos: detectado.dados
     }]);
 
-    setLogs(prev => [`✅ ${info.tipo} processado: ${nome}`, ...prev]);
+    setLogs(prev => [`${detectado.tipo}: ${nome}`, ...prev]);
+    atualizarDashboard();
   };
 
-  if (!isClient) return null;
+  if (!isClient) return null; // Previne erro #418
 
   return (
-    <div className="bg-black min-h-screen text-white p-6 font-sans">
-      {/* HEADER DASHBOARD */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        <div className="bg-zinc-900 border-l-4 border-green-500 p-6 rounded-xl">
-          <p className="text-zinc-400 text-sm">Veículos na Frota</p>
-          <h2 className="text-3xl font-bold">{vencimentos}</h2>
+    <div className="min-h-screen bg-black text-white p-8 font-sans">
+      {/* DASHBOARD CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+        <div className="bg-zinc-900 p-6 rounded-2xl border-l-4 border-green-500 shadow-lg">
+          <p className="text-zinc-500 text-xs font-bold uppercase">Veículos Cadastrados</p>
+          <h2 className="text-4xl font-black mt-1">{stats.frota}</h2>
         </div>
-        <div className="bg-zinc-900 border-l-4 border-blue-500 p-6 rounded-xl">
-          <p className="text-zinc-400 text-sm">Documentos Lidos (IA)</p>
-          <h2 className="text-3xl font-bold">{logs.length}</h2>
+        <div className="bg-zinc-900 p-6 rounded-2xl border-l-4 border-blue-500 shadow-lg">
+          <p className="text-zinc-500 text-xs font-bold uppercase">Documentos Processados</p>
+          <h2 className="text-4xl font-black mt-1">{stats.docs}</h2>
         </div>
       </div>
 
@@ -94,24 +96,26 @@ export default function MaximusIntegradorUniversal() {
       <div 
         onDrop={(e) => { e.preventDefault(); processarArquivos(e.dataTransfer.files); }}
         onDragOver={(e) => e.preventDefault()}
-        className="bg-zinc-900 border-2 border-dashed border-zinc-700 p-16 rounded-3xl text-center hover:border-green-500 transition-all"
+        className="bg-zinc-900 border-2 border-dashed border-zinc-800 p-20 rounded-[40px] text-center hover:border-green-600 transition-all cursor-pointer"
       >
-        <UploadCloud className="mx-auto text-green-500 mb-4" size={50} />
-        <h2 className="text-2xl font-bold mb-2">Arraste e Cole PhD</h2>
-        <p className="text-zinc-500">Solte aqui CRLVs, Notas Fiscais, Ofícios ou Extratos ANTT</p>
+        <UploadCloud className="mx-auto text-green-500 mb-4" size={56} />
+        <h2 className="text-2xl font-black italic">MOTOR DE AUDITORIA PhD</h2>
+        <p className="text-zinc-500">Arraste aqui seus Ofícios, CRLVs e Notas Fiscais</p>
       </div>
 
-      {/* LOG DE ATIVIDADES EM TEMPO REAL */}
-      <div className="mt-8 space-y-3">
-        <h3 className="flex items-center gap-2 text-zinc-400 font-bold uppercase text-xs tracking-widest">
-          <Zap size={14} className="text-yellow-500" /> Fluxo de Dados Ativo
+      {/* LOG DE PROCESSAMENTO */}
+      <div className="mt-10">
+        <h3 className="text-zinc-500 text-xs font-black mb-4 flex items-center gap-2">
+          <Zap size={14} className="text-yellow-500" /> FLUXO DE DADOS ATIVO
         </h3>
-        {logs.map((log, index) => (
-          <div key={index} className="bg-zinc-900/50 p-4 rounded-lg border border-zinc-800 flex justify-between items-center animate-in slide-in-from-left">
-            <span className="text-sm font-mono">{log}</span>
-            <CheckCircle size={18} className="text-green-500" />
-          </div>
-        ))}
+        <div className="space-y-2">
+          {logs.map((log, i) => (
+            <div key={i} className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800 flex justify-between">
+              <span className="text-sm font-mono text-zinc-300">{log}</span>
+              <CheckCircle size={18} className="text-green-500" />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
