@@ -3,19 +3,18 @@ import { createClient } from '@supabase/supabase-js';
 import * as pdfjsLib from 'pdfjs-dist';
 import { UploadCloud, CheckCircle, Zap, ShieldCheck } from 'lucide-react';
 
-// --- CONEXÃO SEGURA ---
+// --- CONFIGURAÇÃO SEGURA ---
 const supabase = createClient(
   'https://gmhxmtlidgcgpstxiiwg.supabase.co', 
   'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'
 );
 
 export default function MaximusAuditoria() {
-  const [mounted, setMounted] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const [logs, setLogs] = useState([]);
 
   useEffect(() => {
-    setMounted(true);
-    // Só carrega o motor de PDF quando o navegador estiver pronto
+    setIsMounted(true);
     if (typeof window !== 'undefined') {
       pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
     }
@@ -34,19 +33,20 @@ export default function MaximusAuditoria() {
             const content = await page.getTextContent();
             texto += content.items.map(s => s.str).join(" ");
           }
-          analisarIA(texto, file.name);
-        } catch (e) { console.error("Erro ao ler PDF"); }
+          analisar(texto, file.name);
+        } catch (e) { console.error("Erro PDF"); }
       };
       reader.readAsArrayBuffer(file);
     }
   };
 
-  const analisarIA = async (texto, nome) => {
+  const analisar = async (texto, nome) => {
     let tipo = "Outros";
+    // Extração inteligente baseada nos seus arquivos
     if (texto.includes("RENAVAM")) tipo = "CRLV";
     if (texto.includes("DANFE") || texto.includes("RANDON")) tipo = "NOTA FISCAL";
+    if (texto.includes("SEMAS") || texto.includes("2025/0000036005")) tipo = "OFICIO/SEMAS";
 
-    // Salva no Supabase
     await supabase.from('documentos_processados').insert([{
       nome_arquivo: nome,
       tipo_doc: tipo,
@@ -56,10 +56,11 @@ export default function MaximusAuditoria() {
     setLogs(p => [`✅ ${tipo} IDENTIFICADO: ${nome}`, ...p]);
   };
 
-  if (!mounted) return null;
+  // Trava Anti-Erro #418: Não renderiza nada no servidor, só no navegador do Philipe
+  if (!isMounted) return <div className="min-h-screen bg-black" />;
 
   return (
-    <div className="min-h-screen bg-black text-white p-10 font-sans antialiased">
+    <div className="min-h-screen bg-black text-white p-10 font-sans">
       <div className="max-w-4xl mx-auto">
         <header className="flex items-center gap-4 mb-10 border-b border-zinc-800 pb-8">
           <ShieldCheck className="text-green-500" size={40} />
@@ -72,7 +73,7 @@ export default function MaximusAuditoria() {
           className="bg-zinc-950 border-2 border-dashed border-zinc-800 p-24 rounded-[40px] text-center hover:border-green-500 transition-all cursor-pointer group"
         >
           <UploadCloud className="mx-auto text-zinc-700 group-hover:text-green-500 mb-4" size={60} />
-          <h2 className="text-xl font-bold">Solte seus arquivos aqui</h2>
+          <h2 className="text-xl font-bold">Solte seus PDFs aqui</h2>
           <p className="text-zinc-500 text-sm mt-2 font-mono tracking-widest">IA EM TEMPO REAL</p>
         </div>
 
