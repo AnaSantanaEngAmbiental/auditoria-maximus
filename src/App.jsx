@@ -1,23 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import * as pdfjsLib from 'pdfjs-dist';
-import { UploadCloud, ShieldCheck, Zap, Database } from 'lucide-react';
+import { UploadCloud, ShieldCheck, Database, AlertTriangle } from 'lucide-react';
 
-// Conexão com o seu Supabase (gmhxmtlidgcgpstxiiwg)
+// --- CONFIGURAÇÃO SUPABASE ---
 const supabase = createClient(
   'https://gmhxmtlidgcgpstxiiwg.supabase.co', 
   'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'
 );
 
 export default function App() {
+  const [isMounted, setIsMounted] = useState(false);
   const [logs, setLogs] = useState([]);
 
   useEffect(() => {
-    // Configura o motor de PDF via CDN para evitar o erro 404 de worker
+    setIsMounted(true); // Só ativa o app no navegador
     pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
   }, []);
 
-  const handleUpload = async (files) => {
+  const processarPDFs = async (files) => {
     for (const file of Array.from(files)) {
       const reader = new FileReader();
       reader.onload = async () => {
@@ -30,56 +31,71 @@ export default function App() {
             const content = await page.getTextContent();
             text += content.items.map(s => s.str).join(" ");
           }
-          salvarNoBanco(text, file.name);
-        } catch (e) {
-          setLogs(prev => [`❌ Erro no arquivo: ${file.name}`, ...prev]);
+          await salvarAuditoria(text, file.name);
+        } catch (err) {
+          setLogs(prev => [`❌ Erro no arquivo ${file.name}`, ...prev]);
         }
       };
       reader.readAsArrayBuffer(file);
     }
   };
 
-  const salvarNoBanco = async (texto, nome) => {
-    let tipo = "Outros";
+  const salvarAuditoria = async (texto, nome) => {
+    let tipo = "NÃO IDENTIFICADO";
     if (texto.includes("RENAVAM")) tipo = "CRLV";
-    if (texto.includes("DANFE")) tipo = "NOTA FISCAL";
+    if (texto.includes("DANFE") || texto.includes("CHAVE DE ACESSO")) tipo = "NOTA FISCAL";
 
-    // Salvando na tabela que você criou no SQL Editor
     const { error } = await supabase.from('documentos_processados').insert([{
       nome_arquivo: nome,
       tipo_doc: tipo,
-      conteudo_extraido: { resumo: texto.substring(0, 500) }
+      conteudo_extraido: { resumo: texto.substring(0, 300) }
     }]);
 
     if (!error) {
-      setLogs(prev => [`✅ SALVO NO BANCO: ${tipo} (${nome})`, ...prev]);
+      setLogs(prev => [`✅ [${tipo}] Processado: ${nome}`, ...prev]);
     }
   };
 
+  // Trava de Segurança: Se não estiver montado, renderiza nada (Evita Erro #418)
+  if (!isMounted) return <div className="bg-black min-h-screen" />;
+
   return (
-    <div className="min-h-screen bg-black text-white p-6 font-sans">
-      <div className="max-w-4xl mx-auto">
-        <header className="flex items-center gap-3 mb-10 border-b border-zinc-800 pb-6">
-          <ShieldCheck className="text-green-500" size={32} />
-          <h1 className="text-2xl font-black italic uppercase tracking-tighter">Maximus PhD</h1>
+    <div className="min-h-screen bg-black text-white font-sans p-6">
+      <div className="max-w-3xl mx-auto">
+        <header className="flex items-center gap-4 mb-12 border-b border-zinc-800 pb-8">
+          <ShieldCheck className="text-green-500" size={40} />
+          <div>
+            <h1 className="text-3xl font-black italic tracking-tighter uppercase">Maximus Engine</h1>
+            <p className="text-zinc-500 text-[10px] tracking-[4px] font-bold">AUDITORIA DE DOCUMENTOS v2</p>
+          </div>
         </header>
 
         <div 
-          onDrop={(e) => { e.preventDefault(); handleUpload(e.dataTransfer.files); }}
+          onDrop={(e) => { e.preventDefault(); processarPDFs(e.dataTransfer.files); }}
           onDragOver={(e) => e.preventDefault()}
-          className="border-2 border-dashed border-zinc-800 p-20 rounded-[40px] text-center hover:border-green-500 transition-all cursor-pointer bg-zinc-950 group"
+          className="border-2 border-dashed border-zinc-800 rounded-[40px] p-24 text-center bg-zinc-950/50 hover:border-green-500 transition-all cursor-pointer group"
+          onClick={() => document.getElementById('inputPDF').click()}
         >
-          <UploadCloud className="mx-auto mb-4 text-zinc-700 group-hover:text-green-500" size={50} />
-          <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs">Arraste seus documentos aqui</p>
+          <UploadCloud className="mx-auto mb-6 text-zinc-700 group-hover:text-green-500 group-hover:scale-110 transition-transform" size={64} />
+          <h2 className="text-xl font-bold mb-2">Solte seus 10 PDFs aqui</h2>
+          <p className="text-zinc-500 text-xs uppercase tracking-widest">A análise começará instantaneamente</p>
+          <input id="inputPDF" type="file" multiple className="hidden" onChange={(e) => processarPDFs(e.target.files)} />
         </div>
 
-        <div className="mt-12 space-y-3">
+        <div className="mt-12 space-y-4">
           {logs.map((log, i) => (
-            <div key={i} className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-2xl flex justify-between items-center">
-              <span className="text-xs font-mono text-zinc-300">{log}</span>
-              <Database size={16} className="text-zinc-600" />
+            <div key={i} className="flex justify-between items-center bg-zinc-900 border border-zinc-800 p-5 rounded-2xl animate-in slide-in-from-bottom-2">
+              <span className="text-sm font-mono text-zinc-300">{log}</span>
+              <div className="flex gap-3 text-zinc-600">
+                <Database size={16} />
+              </div>
             </div>
           ))}
+          {logs.length === 0 && (
+            <div className="text-center py-20 text-zinc-800 italic text-sm border border-zinc-900 rounded-[40px]">
+              Nenhum documento na fila de auditoria...
+            </div>
+          )}
         </div>
       </div>
     </div>
