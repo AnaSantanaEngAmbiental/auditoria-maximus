@@ -5,8 +5,8 @@ import { UploadCloud, CheckCircle, Zap, FileText, AlertCircle } from 'lucide-rea
 
 // --- COLOQUE SUAS CHAVES AQUI ---
 const supabase = createClient(
-  'SUA_URL_DO_SUPABASE', 
-  'SUA_CHAVE_ANON_PUBLIC'
+  'https://gmhxmtlidgcgpstxiiwg.supabase.co', 
+  'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'
 );
 
 export default function MaximusSistemaPhD() {
