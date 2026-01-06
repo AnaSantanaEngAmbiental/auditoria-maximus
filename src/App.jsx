@@ -13,17 +13,17 @@ export default function App() {
   const [logs, setLogs] = useState([]);
 
   useEffect(() => {
-    setMounted(true);
-    // Garante o carregamento do motor de PDF sem erros 404
+    setMounted(true); // Força a renderização apenas no cliente (resolve o erro de 2ª tentativa)
     pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`;
   }, []);
 
-  if (!mounted) return <div className="min-h-screen bg-black" />;
+  if (!mounted) return null;
 
-  const processarAuditoria = async (files) => {
+  const handleUpload = async (e) => {
+    const files = e.target.files || e.dataTransfer.files;
     for (const file of Array.from(files)) {
       if (file.type !== "application/pdf") {
-        setLogs(prev => [{ status: 'error', msg: `Formato inválido: ${file.name}` }, ...prev]);
+        setLogs(prev => [{ status: 'error', msg: `Apenas PDF: ${file.name}` }, ...prev]);
         continue;
       }
 
@@ -41,18 +41,18 @@ export default function App() {
           
           const tipo = text.includes("RENAVAM") ? "CRLV" : "NF-E";
 
-          // Envio corrigido para o Supabase
+          // ENVIO CORRIGIDO: Agora com unidade_id para evitar o erro 400
           const { error } = await supabase.from('documentos_processados').insert([{
             nome_arquivo: file.name,
             tipo_doc: tipo,
             conteudo_extraido: { resumo: text.substring(0, 500) },
-            unidade_id: '8694084d-26a9-4674-848e-67ee5e1ba4d4' // ID padrão para evitar erro 404
+            unidade_id: '8694084d-26a9-4674-848e-67ee5e1ba4d4' 
           }]);
 
           if (error) throw error;
           setLogs(prev => [{ status: 'success', msg: `Auditado: ${tipo} - ${file.name}` }, ...prev]);
         } catch (err) {
-          setLogs(prev => [{ status: 'error', msg: `Erro no Banco: ${file.name}` }, ...prev]);
+          setLogs(prev => [{ status: 'error', msg: `Falha no Banco: ${file.name}` }, ...prev]);
         }
       };
       reader.readAsArrayBuffer(file);
@@ -60,34 +60,29 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white p-8 font-sans antialiased">
+    <div className="min-h-screen bg-black text-white p-8">
       <div className="max-w-4xl mx-auto border border-zinc-800 bg-zinc-950/50 rounded-[2.5rem] p-12 shadow-2xl">
-        <header className="flex items-center gap-4 mb-12">
-          <div className="p-3 bg-green-500/10 rounded-2xl">
-            <ShieldCheck className="text-green-500" size={32} />
-          </div>
-          <h1 className="text-2xl font-black uppercase italic tracking-tighter">Maximus PhD Engine</h1>
+        <header className="flex items-center gap-4 mb-10 border-b border-zinc-800 pb-8">
+          <ShieldCheck className="text-green-500" size={40} />
+          <h1 className="text-2xl font-black uppercase tracking-tighter italic">Maximus PhD Auditor</h1>
         </header>
 
         <div 
           onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => { e.preventDefault(); processarAuditoria(e.dataTransfer.files); }}
-          onClick={() => document.getElementById('fileIn').click()}
-          className="border-2 border-dashed border-zinc-800 rounded-[2rem] p-20 text-center hover:border-green-500/50 transition-all cursor-pointer bg-black/40 group"
+          onDrop={(e) => { e.preventDefault(); handleUpload(e); }}
+          onClick={() => document.getElementById('fIn').click()}
+          className="border-2 border-dashed border-zinc-800 rounded-[2rem] p-24 text-center hover:border-green-500/50 transition-all cursor-pointer bg-black/40 group"
         >
-          <UploadCloud className="mx-auto mb-4 text-zinc-700 group-hover:text-green-500 transition-colors" size={60} />
-          <p className="font-bold text-zinc-400 group-hover:text-zinc-200">Arraste seus PDFs para Auditoria</p>
-          <input id="fileIn" type="file" multiple className="hidden" onChange={(e) => processarAuditoria(e.target.files)} />
+          <UploadCloud className="mx-auto mb-4 text-zinc-700 group-hover:text-green-500" size={60} />
+          <p className="font-bold text-zinc-400">Arraste seus PDFs para Auditoria em Tempo Real</p>
+          <input id="fIn" type="file" multiple className="hidden" onChange={handleUpload} />
         </div>
 
         <div className="mt-10 space-y-3">
           {logs.map((log, i) => (
-            <div key={i} className="flex items-center justify-between p-4 rounded-2xl bg-zinc-900/50 border border-zinc-800 border-l-4 border-l-green-500/50">
-              <div className="flex items-center gap-3">
-                {log.status === 'success' ? <CheckCircle2 className="text-green-500" size={18} /> : <AlertCircle className="text-red-500" size={18} />}
-                <span className="text-sm font-medium text-zinc-300">{log.msg}</span>
-              </div>
-              <Database size={14} className="text-zinc-700" />
+            <div key={i} className="flex items-center justify-between p-4 rounded-xl bg-zinc-900 border border-zinc-800">
+              <span className={`text-sm ${log.status === 'success' ? 'text-green-400' : 'text-red-400'}`}>{log.msg}</span>
+              <Database size={16} className="text-zinc-700" />
             </div>
           ))}
         </div>
