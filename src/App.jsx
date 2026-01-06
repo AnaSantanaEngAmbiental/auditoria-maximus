@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import * as pdfjsLib from 'pdfjs-dist';
-import { UploadCloud, ShieldCheck, Database, FileText } from 'lucide-react';
+import { UploadCloud, ShieldCheck, Database, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
 
+// Conexão direta com seu projeto Supabase
 const supabase = createClient(
   'https://gmhxmtlidgcgpstxiiwg.supabase.co', 
   'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'
@@ -11,89 +12,96 @@ const supabase = createClient(
 export default function App() {
   const [mounted, setMounted] = useState(false);
   const [logs, setLogs] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    // Usa o worker da mesma versão da lib para evitar conflitos
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
+    // Worker externo para evitar erro de carregamento local
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`;
   }, []);
 
-  if (!mounted) return <div className="bg-black min-h-screen" />;
+  if (!mounted) return null;
 
-  const handleUpload = async (e) => {
-    const files = e.target.files || e.dataTransfer.files;
-    for (const file of Array.from(files)) {
-      if (file.type !== "application/pdf") {
-        setLogs(prev => [`❌ Apenas PDF é aceito: ${file.name}`, ...prev]);
-        continue;
-      }
-
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const typedarray = new Uint8Array(reader.result);
-          const pdf = await pdfjsLib.getDocument(typedarray).promise;
-          let text = "";
-          for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const content = await page.getTextContent();
-            text += content.items.map(s => s.str).join(" ");
-          }
-          await salvarNoSupabase(text, file.name);
-        } catch (err) {
-          setLogs(prev => [`❌ Erro ao ler PDF: ${file.name}`, ...prev]);
-        }
-      };
-      reader.readAsArrayBuffer(file);
+  const processarArquivo = async (file) => {
+    if (file.type !== "application/pdf") {
+      setLogs(prev => [{ status: 'error', msg: `Apenas PDF: ${file.name}` }, ...prev]);
+      return;
     }
-  };
 
-  const salvarNoSupabase = async (texto, nome) => {
-    const tipo = texto.includes("RENAVAM") ? "CRLV" : "NF-E";
-    const { error } = await supabase.from('documentos_processados').insert([{
-      nome_arquivo: nome,
-      tipo_doc: tipo,
-      conteudo_extraido: { resumo: texto.substring(0, 500) }
-    }]);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const typedarray = new Uint8Array(reader.result);
+        const pdf = await pdfjsLib.getDocument(typedarray).promise;
+        let text = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += content.items.map(s => s.str).join(" ");
+        }
+        
+        const tipo = text.includes("RENAVAM") ? "CRLV" : "NF-E";
 
-    setLogs(prev => [`${error ? '⚠️ Erro DB' : '✅ Sucesso'}: ${tipo} - ${nome}`, ...prev]);
+        // Inserção corrigida com unidade_id para evitar erro 404/500
+        const { error } = await supabase.from('documentos_processados').insert([{
+          nome_arquivo: file.name,
+          tipo_doc: tipo,
+          conteudo_extraido: { resumo: text.substring(0, 600) },
+          unidade_id: '8694084d-26a9-4674-848e-67ee5e1ba4d4' // UUID de fallback
+        }]);
+
+        if (error) throw error;
+        setLogs(prev => [{ status: 'success', msg: `${tipo} processado: ${file.name}` }, ...prev]);
+      } catch (err) {
+        setLogs(prev => [{ status: 'error', msg: `Falha no Banco: ${file.name}` }, ...prev]);
+      }
+    };
+    reader.readAsArrayBuffer(file);
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-8 font-sans antialiased">
-      <div className="max-w-4xl mx-auto">
-        <header className="flex items-center gap-4 mb-12 py-6 border-b border-zinc-800">
-          <div className="p-3 bg-green-500/10 rounded-2xl">
-            <ShieldCheck className="text-green-500" size={32} />
+    <div className="min-h-screen bg-[#050505] text-white p-6 font-sans antialiased">
+      <div className="max-w-5xl mx-auto border border-zinc-800 bg-zinc-950/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+        <header className="p-8 border-b border-zinc-800 flex items-center justify-between bg-black/20">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-green-500/20 rounded-lg">
+              <ShieldCheck className="text-green-500" size={28} />
+            </div>
+            <h1 className="text-xl font-black uppercase tracking-widest italic text-green-500">Maximus PhD Engine</h1>
           </div>
-          <h1 className="text-2xl font-black uppercase tracking-tighter italic">Maximus PhD Auditor</h1>
+          <div className="flex gap-2">
+            <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+            <span className="text-[10px] uppercase font-bold text-zinc-500">Sistema Ativo</span>
+          </div>
         </header>
 
-        <div 
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => { e.preventDefault(); handleUpload(e); }}
-          onClick={() => document.getElementById('inputPDF').click()}
-          className="group relative border-2 border-dashed border-zinc-800 bg-zinc-950/50 rounded-[2.5rem] p-20 text-center hover:border-green-500/50 transition-all cursor-pointer overflow-hidden"
-        >
-          <div className="relative z-10">
-            <UploadCloud className="mx-auto mb-6 text-zinc-600 group-hover:text-green-500 transition-colors" size={56} />
-            <h2 className="text-xl font-bold text-zinc-200">Arraste seus PDFs aqui</h2>
-            <p className="text-zinc-500 text-sm mt-2">O sistema identificará CRLV e Notas Fiscais automaticamente</p>
+        <main className="p-12">
+          <div 
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(e) => { e.preventDefault(); setIsDragging(false); Array.from(e.dataTransfer.files).forEach(processarArquivo); }}
+            onClick={() => document.getElementById('inputPDF').click()}
+            className={`border-2 border-dashed rounded-[2rem] p-24 text-center transition-all cursor-pointer 
+              ${isDragging ? 'border-green-500 bg-green-500/5' : 'border-zinc-800 hover:border-zinc-600 bg-black/40'}`}
+          >
+            <UploadCloud className={`mx-auto mb-6 transition-colors ${isDragging ? 'text-green-500' : 'text-zinc-700'}`} size={64} />
+            <h2 className="text-2xl font-bold mb-2">Central de Auditoria</h2>
+            <p className="text-zinc-500">Solte seus arquivos PDF (CRLV ou NF-e) para varredura imediata</p>
+            <input id="inputPDF" type="file" multiple className="hidden" onChange={(e) => Array.from(e.target.files).forEach(processarArquivo)} />
           </div>
-          <input id="inputPDF" type="file" multiple className="hidden" onChange={handleUpload} />
-        </div>
 
-        <div className="mt-12 space-y-3">
-          {logs.map((log, i) => (
-            <div key={i} className="flex justify-between items-center bg-zinc-900/50 border border-zinc-800 p-4 rounded-2xl animate-in fade-in duration-500">
-              <span className="text-sm font-medium text-zinc-400">{log}</span>
-              <div className="flex gap-2">
-                 <FileText size={16} className="text-zinc-700" />
-                 <Database size={16} className="text-zinc-700" />
+          <div className="mt-10 space-y-3">
+            {logs.map((log, i) => (
+              <div key={i} className="flex items-center justify-between p-4 rounded-xl bg-zinc-900/80 border border-zinc-800 animate-in slide-in-from-top-1">
+                <div className="flex items-center gap-3">
+                  {log.status === 'success' ? <CheckCircle2 className="text-green-500" size={18} /> : <AlertCircle className="text-red-500" size={18} />}
+                  <span className={`text-sm font-medium ${log.status === 'success' ? 'text-zinc-300' : 'text-red-400'}`}>{log.msg}</span>
+                </div>
+                <Database size={14} className="text-zinc-700" />
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </main>
       </div>
     </div>
   );
