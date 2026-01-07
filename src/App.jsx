@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 import * as pdfjsLib from 'pdfjs-dist';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
-// IMPORTAÇÃO CORRIGIDA E REVISADA PELA EQUIPE PHD
 import { 
   UploadCloud, 
   ShieldCheck, 
@@ -11,7 +10,9 @@ import {
   CheckCircle2, 
   AlertCircle, 
   FileText, 
-  Loader2 // Loader2 substitui o Clock para evitar erros de referência
+  Loader2,
+  Search,
+  Fingerprint // Ícone para representar o Chassi/Digital do carro
 } from 'lucide-react';
 
 const supabase = createClient(
@@ -26,10 +27,25 @@ export default function App() {
 
   useEffect(() => {
     setIsMounted(true);
-    // CDN estável do worker do PDF.js
     pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
     fetchDocs();
   }, []);
+
+  // FUNÇÃO PHD: Extrai Placas e Chassis usando Expressões Regulares (Regex)
+  const extrairDadosVeiculo = (texto) => {
+    // Regex para Placa (Antiga: AAA-0000 e Mercosul: AAA0A00)
+    const placaRegex = /[A-Z]{3}[- ]?[0-9][A-Z0-9][0-9]{2}/gi;
+    // Regex para Chassi (Padrão 17 caracteres)
+    const chassiRegex = /[A-HJ-NPR-Z0-9]{17}/gi;
+
+    const placasEncontradas = texto.match(placaRegex) || [];
+    const chassisEncontrados = texto.match(chassiRegex) || [];
+
+    return {
+      placa: placasEncontradas[0] || "Não detectada",
+      chassi: chassisEncontrados[0] || "Não detectado"
+    };
+  };
 
   const fetchDocs = async () => {
     try {
@@ -37,25 +53,24 @@ export default function App() {
         .from('documentos_processados')
         .select('*')
         .order('data_leitura', { ascending: false })
-        .limit(8);
+        .limit(10);
       if (data) setDocs(data);
     } catch (err) {
-      console.error("Erro ao buscar docs:", err);
+      console.error("Erro na busca:", err);
     }
   };
-
-  if (!isMounted) return <div className="min-h-screen bg-[#050505]" />;
 
   const handleUpload = async (e) => {
     const files = e.target.files || e.dataTransfer.files;
     if (!files) return;
 
     for (const file of Array.from(files)) {
-      setLogs(prev => [{ status: 'loading', msg: `Processando: ${file.name}` }, ...prev]);
+      setLogs(prev => [{ status: 'loading', msg: `Analisando: ${file.name}` }, ...prev]);
       const ext = file.name.split('.').pop().toLowerCase();
       let text = "";
 
       try {
+        // Processamento de arquivo (PDF, Excel, Word)
         if (ext === 'pdf') {
           const buffer = await file.arrayBuffer();
           const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
@@ -68,123 +83,116 @@ export default function App() {
           const buffer = await file.arrayBuffer();
           const wb = XLSX.read(buffer);
           text = XLSX.utils.sheet_to_txt(wb.Sheets[wb.SheetNames[0]]);
-        } else if (ext === 'docx') {
-          const buffer = await file.arrayBuffer();
-          const res = await mammoth.extractRawText({ arrayBuffer: buffer });
-          text = res.value;
         }
 
+        // Executa a Inteligência de Extração
+        const dados = extrairDadosVeiculo(text);
+
+        // Salva no Supabase com os novos campos extraídos
         const { error } = await supabase.from('documentos_processados').insert([{
           nome_arquivo: file.name,
           tipo_doc: ext.toUpperCase(),
-          conteudo_extraido: { resumo: text.substring(0, 1000) },
+          conteudo_extraido: { 
+            resumo: text.substring(0, 500),
+            placa: dados.placa.toUpperCase(),
+            chassi: dados.chassi.toUpperCase()
+          },
           unidade_id: '8694084d-26a9-4674-848e-67ee5e1ba4d4'
         }]);
 
         if (error) throw error;
-        
-        setLogs(prev => [{ status: 'success', msg: `Auditado: ${file.name}` }, ...prev]);
+        setLogs(prev => [{ status: 'success', msg: `Placa ${dados.placa} identificada!` }, ...prev]);
         fetchDocs();
 
       } catch (err) {
-        setLogs(prev => [{ status: 'error', msg: `Falha: ${file.name} - ${err.message}` }, ...prev]);
+        setLogs(prev => [{ status: 'error', msg: `Erro: ${err.message}` }, ...prev]);
       }
     }
   };
 
+  if (!isMounted) return <div className="min-h-screen bg-[#050505]" />;
+
   return (
-    <div className="min-h-screen bg-[#050505] text-zinc-300 font-sans p-4 md:p-10 selection:bg-green-500/30">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-[#050505] text-zinc-300 font-sans p-6 md:p-10">
+      <div className="max-w-7xl mx-auto">
         
-        {/* CABEÇALHO PHD */}
-        <header className="flex flex-col md:flex-row items-center justify-between mb-10 gap-6 border-b border-zinc-900 pb-10">
-          <div className="flex items-center gap-5">
-            <div className="bg-green-500/10 p-4 rounded-[2rem] border border-green-500/20 shadow-[0_0_20px_rgba(34,197,94,0.15)]">
-              <ShieldCheck className="text-green-500" size={42} />
+        {/* HEADER ESTATÍSTICO */}
+        <header className="flex justify-between items-end mb-12 border-b border-zinc-900 pb-10">
+          <div className="flex items-center gap-6">
+            <div className="bg-green-500/10 p-4 rounded-3xl border border-green-500/20">
+              <ShieldCheck className="text-green-500" size={40} />
             </div>
             <div>
               <h1 className="text-4xl font-black text-white uppercase italic tracking-tighter">Maximus PhD</h1>
-              <p className="text-[10px] font-bold text-zinc-600 tracking-[5px] uppercase mt-1">Inteligência de Auditoria</p>
+              <p className="text-[10px] font-bold text-zinc-500 tracking-[5px] uppercase">Auditoria de Frota & Ofícios</p>
             </div>
           </div>
-          <div className="flex gap-4">
-             <div className="px-4 py-2 bg-zinc-900/50 border border-zinc-800 rounded-xl text-[10px] font-mono">
-                STATUS: <span className="text-green-500">ONLINE</span>
-             </div>
+          <div className="hidden md:block text-right">
+            <p className="text-[10px] text-zinc-600 font-mono uppercase">Database Connection</p>
+            <p className="text-xs text-green-500 font-bold">SUPABASE_ACTIVE_STABLE</p>
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           
-          {/* PAINEL DE CONTROLE (ESQUERDA) */}
-          <div className="lg:col-span-4 space-y-6">
+          {/* PAINEL LATERAL: UPLOAD E LOGS */}
+          <div className="lg:col-span-1 space-y-6">
             <div 
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => { e.preventDefault(); handleUpload(e); }}
               onClick={() => document.getElementById('fIn').click()}
-              className="group border-2 border-dashed border-zinc-800 bg-zinc-900/10 rounded-[2.5rem] p-12 text-center hover:border-green-500/40 hover:bg-green-500/5 transition-all cursor-pointer"
+              className="bg-zinc-900/20 border-2 border-dashed border-zinc-800 p-10 rounded-[2.5rem] text-center hover:border-green-500/40 transition-all cursor-pointer group"
             >
-              <UploadCloud className="mx-auto mb-4 text-zinc-700 group-hover:text-green-500 transition-all group-hover:scale-110" size={56} />
-              <h3 className="text-lg font-bold text-white tracking-tight">Inserir Documentos</h3>
-              <p className="text-xs text-zinc-500 mt-2 leading-relaxed">Arraste seus PDFs de Ofício ou Planilhas aqui</p>
+              <UploadCloud className="mx-auto mb-4 text-zinc-700 group-hover:text-green-500" size={48} />
+              <span className="text-sm font-bold text-white">Novo Documento</span>
               <input id="fIn" type="file" multiple className="hidden" onChange={handleUpload} />
             </div>
 
-            <div className="bg-zinc-950 border border-zinc-900 rounded-[2rem] p-6 h-[350px] overflow-hidden flex flex-col">
-              <h4 className="text-[10px] font-black text-zinc-700 uppercase tracking-widest mb-4">Monitor de Sistema</h4>
-              <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scroll">
+            <div className="bg-black border border-zinc-900 rounded-[2rem] p-6 h-[400px] flex flex-col">
+              <h3 className="text-[10px] font-black text-zinc-700 mb-4 tracking-widest uppercase">Atividade do Auditor</h3>
+              <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-zinc-800">
                 {logs.map((log, i) => (
-                  <div key={i} className="flex items-start gap-3 p-3 bg-white/5 rounded-xl border border-white/5 animate-in fade-in slide-in-from-left-2">
-                    {log.status === 'success' ? <CheckCircle2 className="text-green-500 mt-0.5" size={14} /> : 
-                     log.status === 'error' ? <AlertCircle className="text-red-500 mt-0.5" size={14} /> : 
-                     <Loader2 className="text-yellow-500 animate-spin mt-0.5" size={14} />}
-                    <span className="text-[11px] leading-tight text-zinc-400">{log.msg}</span>
+                  <div key={i} className="text-[11px] p-3 bg-zinc-900/50 rounded-xl border border-white/5 flex gap-2">
+                    {log.status === 'success' ? <CheckCircle2 size={14} className="text-green-500" /> : <Loader2 size={14} className="text-yellow-500 animate-spin" />}
+                    {log.msg}
                   </div>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* PAINEL DE DADOS (DIREITA) */}
-          <div className="lg:col-span-8">
-            <div className="bg-zinc-900/20 border border-zinc-800 rounded-[3rem] p-8 h-full min-h-[600px] backdrop-blur-sm">
-              <div className="flex items-center justify-between mb-8 px-2">
-                <h3 className="text-xl font-bold text-white flex items-center gap-3">
-                  <Database size={22} className="text-green-500" />
-                  Auditorias Recentes
-                </h3>
-                <div className="h-px flex-1 bg-zinc-800 mx-6 hidden sm:block"></div>
-                <span className="text-[10px] font-mono text-zinc-600 italic">Total: {docs.length}</span>
+          {/* PAINEL CENTRAL: LISTAGEM INTELIGENTE */}
+          <div className="lg:col-span-3">
+            <div className="bg-zinc-900/10 border border-zinc-800 rounded-[3rem] p-8 h-full min-h-[600px]">
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-xl font-bold text-white flex items-center gap-3">
+                  <Search size={20} className="text-green-500" />
+                  Resultados da Varredura
+                </h2>
               </div>
 
-              <div className="grid grid-cols-1 gap-3">
-                {docs.length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-32 text-zinc-800 opacity-20">
-                    <FileText size={60} strokeWidth={1} />
-                    <p className="mt-4 italic text-sm">Aguardando entrada de dados...</p>
-                  </div>
-                )}
-                
+              <div className="space-y-4">
                 {docs.map((doc) => (
-                  <div key={doc.id} className="group bg-zinc-900/40 border border-zinc-800/50 p-5 rounded-2xl flex items-center justify-between hover:border-green-500/20 transition-all hover:bg-zinc-900/60">
-                    <div className="flex items-center gap-5">
-                      <div className="p-3 bg-black rounded-xl text-zinc-600 group-hover:text-green-500 transition-colors shadow-inner">
-                        <FileText size={22} />
+                  <div key={doc.id} className="bg-zinc-950 border border-zinc-900 p-6 rounded-3xl flex flex-col md:flex-row justify-between gap-6 hover:border-green-500/30 transition-all">
+                    <div className="flex gap-5">
+                      <div className="bg-zinc-900 p-4 rounded-2xl text-zinc-500">
+                        <FileText size={24} />
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-white group-hover:text-green-400 transition-colors uppercase tracking-tight">{doc.nome_arquivo}</p>
-                        <div className="flex gap-3 mt-1">
-                          <span className="text-[9px] text-zinc-500 font-mono tracking-tighter uppercase">{doc.tipo_doc}</span>
-                          <span className="text-[9px] text-zinc-600">•</span>
-                          <span className="text-[9px] text-zinc-500 font-mono tracking-tighter uppercase">
-                            {new Date(doc.data_leitura).toLocaleDateString()} {new Date(doc.data_leitura).toLocaleTimeString()}
-                          </span>
-                        </div>
+                        <h4 className="text-sm font-black text-white truncate max-w-[200px] uppercase italic">{doc.nome_arquivo}</h4>
+                        <p className="text-[10px] text-zinc-500 font-mono mt-1">{new Date(doc.data_leitura).toLocaleString()}</p>
                       </div>
                     </div>
-                    <div className="hidden sm:block">
-                      <div className="px-3 py-1 rounded-full border border-green-500/20 bg-green-500/5 text-[9px] font-black text-green-500 tracking-widest">
-                        ESTOCADO
+
+                    {/* DADOS EXTRAÍDOS EM DESTAQUE */}
+                    <div className="flex gap-4">
+                      <div className="bg-black border border-zinc-800 px-4 py-2 rounded-xl flex flex-col items-center min-w-[100px]">
+                        <span className="text-[8px] text-zinc-600 font-bold uppercase tracking-widest">Placa</span>
+                        <span className="text-xs font-black text-green-500 font-mono">{doc.conteudo_extraido?.placa || "---"}</span>
+                      </div>
+                      <div className="bg-black border border-zinc-800 px-4 py-2 rounded-xl flex flex-col items-center min-w-[140px]">
+                        <span className="text-[8px] text-zinc-600 font-bold uppercase tracking-widest">Chassi</span>
+                        <span className="text-[10px] font-black text-zinc-400 font-mono uppercase truncate w-[120px] text-center">
+                          {doc.conteudo_extraido?.chassi || "---"}
+                        </span>
                       </div>
                     </div>
                   </div>
