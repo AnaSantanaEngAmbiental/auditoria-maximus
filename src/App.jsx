@@ -2,15 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import * as pdfjsLib from 'pdfjs-dist';
 import * as XLSX from 'xlsx';
-import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
 import { 
-  ShieldCheck, FileText, Search, Printer, Gavel, 
-  RotateCcw, Briefcase, CheckCircle2, UploadCloud, 
-  Loader2, Building2, Camera, Cloud, AlertCircle, 
-  ChevronRight, HardHat, Info, Trash2, FileJson
+  ShieldCheck, FileText, Search, Printer, 
+  RotateCcw, UploadCloud, Loader2, Building2, 
+  Camera, Cloud, CheckCircle2, AlertTriangle,
+  FileSpreadsheet, HardHat, Info, Trash2, Scale
 } from 'lucide-react';
 
+// Configuração do Supabase Maximus
 const supabase = createClient(
   'https://gmhxmtlidgcgpstxiiwg.supabase.co', 
   'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'
@@ -24,68 +23,101 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef(null);
 
+  // ID da Unidade Padrão configurada no SQL
+  const UNIDADE_ID = '8694084d-26a9-4674-848e-67ee5e1ba4d4';
+
   useEffect(() => {
     setIsMounted(true);
+    // Configuração do Worker do PDF.js para processamento em nuvem
     pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
     fetchData();
   }, []);
 
   const fetchData = async () => {
     setLoading(true);
-    const { data } = await supabase.from('documentos_processados').select('*').order('data_leitura', { ascending: false });
-    if (data) setDocs(data);
+    const { data, error } = await supabase
+      .from('documentos_processados')
+      .select('*')
+      .order('data_leitura', { ascending: false });
+    
+    if (!error && data) setDocs(data);
     setLoading(false);
   };
 
-  const handleUpload = async (e) => {
-    const files = Array.from(e.target.files);
-    for (const file of files) {
+  // Motor Pericial de Extração de Dados (Placa, Chassi, ANTT)
+  const realizarPericiaTexto = (texto) => {
+    const placa = (texto.match(/[A-Z]{3}[- ]?[0-9][A-Z0-9][0-9]{2}/gi) || [])[0]?.toUpperCase().replace(/[- ]/g, "") || "---";
+    const chassi = (texto.match(/[A-HJ-NPR-Z0-9]{17}/gi) || [])[0] || "---";
+    const temAntt = texto.includes("ANTC") || texto.includes("ANTT") || texto.includes("RNTRC");
+    
+    return {
+      placa,
+      chassi,
+      status_conformidade: temAntt ? 'CONFORME' : 'ALERTA'
+    };
+  };
+
+  const handleFiles = async (files) => {
+    const fileList = Array.from(files);
+    
+    for (const file of fileList) {
       const logId = Date.now();
-      setLogs(prev => [{ id: logId, status: 'loading', msg: `Perícia PhD: ${file.name}` }, ...prev]);
+      setLogs(prev => [{ id: logId, status: 'loading', msg: `Auditoria: ${file.name}` }, ...prev]);
       
       try {
-        let content = "";
+        let textContent = "";
         const ext = file.name.split('.').pop().toLowerCase();
 
-        // MOTOR DE EXTRAÇÃO UNIVERSAL
+        // 1. Processamento de PDF
         if (ext === 'pdf') {
           const buffer = await file.arrayBuffer();
           const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
           for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
             const text = await page.getTextContent();
-            content += text.items.map(s => s.str).join(" ") + " ";
+            textContent += text.items.map(s => s.str).join(" ") + " ";
           }
-        } else if (['xlsx', 'csv'].includes(ext)) {
+        } 
+        // 2. Processamento de Excel/CSV
+        else if (['xlsx', 'xls', 'csv'].includes(ext)) {
           const buffer = await file.arrayBuffer();
           const wb = XLSX.read(buffer);
-          content = XLSX.utils.sheet_to_txt(wb.Sheets[wb.SheetNames[0]]);
+          textContent = XLSX.utils.sheet_to_txt(wb.Sheets[wb.SheetNames[0]]);
+        }
+        // 3. Imagens (Captura de nome para legenda fotográfica)
+        else if (['jpg', 'jpeg', 'png'].includes(ext)) {
+          textContent = `ARQUIVO_IMAGEM: ${file.name}`;
         }
 
-        // Lógica de Extração de Dados Críticos
-        const info = {
-          placa: (content.match(/[A-Z]{3}[- ]?[0-9][A-Z0-9][0-9]{2}/gi) || [])[0]?.toUpperCase().replace(/[- ]/g, "") || "---",
-          chassi: (content.match(/[A-HJ-NPR-Z0-9]{17}/gi) || [])[0] || "---",
-          validade: content.includes("2026") ? "VIGENTE" : "EXPIRADO"
-        };
+        const pericia = realizarPericiaTexto(textContent);
 
-        await supabase.from('documentos_processados').insert([{
+        // Envio para o Banco de Dados Consolidado
+        const { error } = await supabase.from('documentos_processados').insert([{
+          unidade_id: UNIDADE_ID,
           nome_arquivo: file.name,
           tipo_doc: ext.toUpperCase(),
-          conteudo_extraido: info,
-          unidade_id: '8694084d-26a9-4674-848e-67ee5e1ba4d4'
+          conteudo_extraido: pericia,
+          status_conformidade: pericia.status_conformidade,
+          legenda_tecnica: ext === 'jpg' || ext === 'jpeg' ? 'Foto de evidência técnica.' : ''
         }]);
 
-        setLogs(prev => prev.map(l => l.id === logId ? { ...l, status: 'success', msg: `Auditoria Concluída: ${file.name}` } : l));
+        if (error) throw error;
+
+        setLogs(prev => prev.map(l => l.id === logId ? { ...l, status: 'success', msg: `Sincronizado: ${file.name}` } : l));
         fetchData();
       } catch (err) {
-        setLogs(prev => prev.map(l => l.id === logId ? { ...l, status: 'error', msg: `Falha no Processamento` } : l));
+        console.error(err);
+        setLogs(prev => prev.map(l => l.id === logId ? { ...l, status: 'error', msg: `Falha técnica no arquivo` } : l));
       }
     }
   };
 
-  const updateField = async (id, field, value) => {
-    await supabase.from('documentos_processados').update({ [field]: value }).eq('id', id);
+  const salvarLegenda = async (id, texto) => {
+    await supabase.from('documentos_processados').update({ legenda_tecnica: texto }).eq('id', id);
+  };
+
+  const deletarDoc = async (id) => {
+    await supabase.from('documentos_processados').delete().eq('id', id);
     fetchData();
   };
 
@@ -94,58 +126,60 @@ export default function App() {
   return (
     <div className="flex h-screen bg-[#020202] text-zinc-400 font-sans overflow-hidden">
       
-      {/* SIDEBAR PhD */}
+      {/* SIDEBAR MAXIMUS PhD */}
       <aside className="w-80 bg-[#050505] border-r border-zinc-800/40 p-6 flex flex-col gap-8 shadow-2xl">
         <div className="flex items-center gap-4 py-4 border-b border-zinc-900">
           <div className="bg-green-500 p-2.5 rounded-2xl shadow-[0_0_20px_rgba(34,197,94,0.4)]">
             <ShieldCheck size={28} className="text-black" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-white italic tracking-tighter">MAXIMUS <span className="text-green-500">PhD</span></h1>
-            <p className="text-[7px] text-zinc-500 font-bold tracking-[4px] uppercase mt-1">Sincronização Cloud Ativa</p>
+            <h1 className="text-xl font-black text-white italic tracking-tighter leading-none">MAXIMUS <span className="text-green-500">PhD</span></h1>
+            <p className="text-[7px] text-zinc-500 font-bold tracking-[4px] uppercase mt-1">Engenharia & Auditoria</p>
           </div>
         </div>
 
-        <nav className="flex flex-col gap-3">
+        <nav className="flex flex-col gap-2">
           <button className="flex items-center gap-4 p-4 bg-green-500/10 text-green-500 border border-green-500/20 rounded-[1.25rem] text-[11px] font-bold">
             <HardHat size={18}/> Auditoria Técnica
           </button>
-          <button className="flex items-center gap-4 p-4 hover:bg-zinc-900 rounded-[1.25rem] text-[11px] transition-all">
+          <button className="flex items-center gap-4 p-4 hover:bg-zinc-900/50 rounded-[1.25rem] text-[11px] transition-all">
             <Camera size={18}/> Relatório Fotográfico
           </button>
-          <button className="flex items-center gap-4 p-4 hover:bg-zinc-900 rounded-[1.25rem] text-[11px] transition-all">
+          <button className="flex items-center gap-4 p-4 hover:bg-zinc-900/50 rounded-[1.25rem] text-[11px] transition-all text-zinc-600">
             <Scale size={18}/> Leis e Condicionantes
           </button>
         </nav>
 
         <div className="mt-auto p-5 bg-zinc-900/20 rounded-[1.5rem] border border-zinc-800/50">
-           <div className="flex items-center gap-3 mb-3">
+           <div className="flex items-center gap-3 mb-2">
               <Cloud className="text-green-500" size={16}/>
-              <span className="text-[9px] text-white font-black uppercase tracking-widest">Supabase + Vercel</span>
+              <span className="text-[9px] text-white font-black uppercase tracking-widest">Supabase Online</span>
            </div>
-           <p className="text-[8px] text-zinc-500 leading-relaxed italic">Acesso remoto garantido sem retrabalho. Banco de dados centralizado via GitHub.</p>
+           <p className="text-[8px] text-zinc-500 italic">Banco de dados consolidado. Sincronização em tempo real ativada.</p>
         </div>
       </aside>
 
-      {/* PAINEL CENTRAL */}
-      <main className="flex-1 flex flex-col bg-[radial-gradient(ellipse_at_top_right,_rgba(34,197,94,0.05)_0%,_transparent_70%)] overflow-hidden">
+      {/* PAINEL OPERACIONAL */}
+      <main className="flex-1 flex flex-col bg-[radial-gradient(circle_at_top_right,_rgba(34,197,94,0.03)_0%,_transparent_50%)]">
         
-        <header className="p-8 border-b border-zinc-900/50 flex justify-between items-center backdrop-blur-xl">
+        <header className="p-8 flex justify-between items-center border-b border-zinc-900/50 backdrop-blur-xl">
           <div className="flex items-center gap-6">
             <div className="h-14 w-14 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
                <Building2 className="text-green-500" size={28}/>
             </div>
             <div>
               <h2 className="text-base font-black text-white uppercase tracking-tighter">Cardoso & Rates Engenharia</h2>
-              <p className="text-[10px] text-zinc-500 mt-1 font-bold uppercase tracking-widest">Licenciamento Ambiental Pará</p>
+              <div className="flex gap-4 mt-1">
+                 <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Auditoria Pericial Pará</span>
+              </div>
             </div>
           </div>
 
-          <div className="relative group">
+          <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-700" size={18} />
             <input 
-              className="bg-black border border-zinc-800 rounded-2xl py-4 pl-12 pr-6 text-[11px] w-[400px] focus:border-green-500 outline-none transition-all"
-              placeholder="Buscar placa, chassi ou análise..."
+              className="bg-black border border-zinc-800 rounded-2xl py-4 pl-12 pr-6 text-[11px] w-[350px] focus:border-green-500 outline-none transition-all"
+              placeholder="Pesquisar placa, documento ou lei..."
               onChange={(e) => setBusca(e.target.value)}
             />
           </div>
@@ -153,84 +187,78 @@ export default function App() {
 
         <div className="p-8 overflow-y-auto space-y-8 scrollbar-hide">
           
-          <div className="grid grid-cols-12 gap-8">
-            {/* DROPZONE PHD */}
-            <div 
-              onClick={() => fileInputRef.current.click()}
-              className="col-span-12 lg:col-span-4 bg-zinc-900/5 border-2 border-dashed border-zinc-800/50 p-14 rounded-[3rem] text-center hover:border-green-500/30 transition-all cursor-pointer group shadow-2xl relative"
-            >
-              <UploadCloud size={60} className="mx-auto mb-6 text-zinc-800 group-hover:text-green-500 transition-all" />
-              <h3 className="text-sm font-black text-white uppercase tracking-[5px]">Arraste & Solte</h3>
-              <p className="text-[9px] text-zinc-600 mt-3 uppercase tracking-[2px]">Universal: PDF, XLSX, JPG, JSON, CSV</p>
-              <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleUpload} />
-            </div>
-
-            {/* MONITOR DE LOGS */}
-            <div className="col-span-12 lg:col-span-8 bg-[#080808] border border-zinc-800/40 rounded-[3rem] p-8 flex flex-col h-[280px] shadow-2xl overflow-hidden">
-               <div className="flex justify-between items-center mb-6">
-                  <span className="text-[10px] font-black text-zinc-600 uppercase tracking-[4px]">Monitor Técnico Maximus</span>
-                  <RotateCcw size={14} className="text-zinc-800 cursor-pointer hover:text-green-500" onClick={fetchData}/>
-               </div>
-               <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-hide">
-                 {logs.map(log => (
-                    <div key={log.id} className="flex items-center gap-4 p-4 bg-black/40 rounded-2xl border border-zinc-900 animate-in slide-in-from-right-4">
-                      {log.status === 'success' ? <CheckCircle2 size={16} className="text-green-500"/> : <Loader2 size={16} className="text-yellow-500 animate-spin"/>}
-                      <span className="text-[11px] text-zinc-400 font-mono italic">{log.msg}</span>
-                    </div>
-                 ))}
-               </div>
-            </div>
+          {/* ÁREA DE ARRASTE UNIVERSAL */}
+          <div 
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
+            onClick={() => fileInputRef.current.click()}
+            className="w-full bg-zinc-900/5 border-2 border-dashed border-zinc-800/50 p-16 rounded-[3rem] text-center hover:border-green-500/30 transition-all cursor-pointer group shadow-2xl relative"
+          >
+            <UploadCloud size={60} className="mx-auto mb-6 text-zinc-800 group-hover:text-green-500 transition-all" />
+            <h3 className="text-sm font-black text-white uppercase tracking-[5px]">Arraste seus Documentos</h3>
+            <p className="text-[10px] text-zinc-600 mt-3 uppercase tracking-[2px]">PDF, Excel, Docx, JSON e Imagens simultâneos</p>
+            <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
           </div>
 
-          {/* TABELA DE AUDITORIA CONSOLIDADA */}
-          <div className="bg-[#080808] border border-zinc-800/40 rounded-[3.5rem] overflow-hidden shadow-2xl mb-12">
+          {/* MONITOR DE LOGS TÉCNICOS */}
+          <div className="grid grid-cols-1 gap-3">
+            {logs.slice(0, 3).map(log => (
+              <div key={log.id} className="flex items-center gap-4 p-4 bg-zinc-900/40 border border-zinc-900 rounded-2xl animate-in slide-in-from-top-2">
+                {log.status === 'loading' ? <Loader2 size={16} className="text-yellow-500 animate-spin"/> : <CheckCircle2 size={16} className="text-green-500"/>}
+                <span className="text-[11px] font-mono text-zinc-400 uppercase italic">{log.msg}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* TABELA DE RESULTADOS PERICIAIS */}
+          <div className="bg-[#080808] border border-zinc-800/40 rounded-[2.5rem] overflow-hidden shadow-2xl mb-10">
             <table className="w-full text-left">
               <thead className="bg-zinc-900/40 text-[10px] uppercase font-black text-zinc-500 tracking-widest border-b border-zinc-900">
                 <tr>
-                  <th className="p-8">Arquivo / Auditoria</th>
-                  <th className="p-8">Placa & Chassi</th>
-                  <th className="p-8">Legenda / Condicionante</th>
+                  <th className="p-8">Documento / Evidência</th>
+                  <th className="p-8">Auditoria (Placa/Status)</th>
+                  <th className="p-8">Legenda Técnica / Análise</th>
                   <th className="p-8 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="text-[12px]">
-                {docs.filter(d => d.nome_arquivo.includes(busca)).map((doc) => (
-                  <tr key={doc.id} className="border-t border-zinc-900/50 hover:bg-green-500/[0.02] transition-all group">
-                    <td className="p-8">
-                      <div className="flex items-center gap-6">
-                        <div className="p-5 bg-zinc-900/50 rounded-3xl text-zinc-600 group-hover:text-green-500 border border-zinc-800/50 transition-all">
-                          {doc.tipo_doc === 'PDF' ? <FileText size={24}/> : doc.tipo_doc === 'JSON' ? <FileJson size={24}/> : <Camera size={24}/>}
-                        </div>
-                        <div>
-                          <p className="font-black text-white uppercase tracking-tighter group-hover:text-green-400 transition-colors">{doc.nome_arquivo}</p>
-                          <p className="text-[9px] text-zinc-600 mt-2 uppercase font-bold tracking-widest">Format: {doc.tipo_doc}</p>
-                        </div>
+                {docs.filter(d => d.nome_arquivo.toLowerCase().includes(busca.toLowerCase())).map((doc) => (
+                  <tr key={doc.id} className="border-t border-zinc-900/50 hover:bg-green-500/[0.01] transition-all group">
+                    <td className="p-8 flex items-center gap-6">
+                      <div className="p-4 bg-zinc-900/50 rounded-2xl text-zinc-700 group-hover:text-green-500 transition-colors border border-zinc-800/50">
+                        {doc.tipo_doc === 'PDF' ? <FileText size={22}/> : doc.tipo_doc === 'XLSX' || doc.tipo_doc === 'CSV' ? <FileSpreadsheet size={22}/> : <Camera size={22}/>}
+                      </div>
+                      <div>
+                        <p className="font-black text-white uppercase tracking-tighter group-hover:text-green-400 transition-colors">{doc.nome_arquivo}</p>
+                        <p className="text-[9px] text-zinc-600 mt-1 uppercase font-bold tracking-widest">{doc.tipo_doc} Sincronizado</p>
                       </div>
                     </td>
                     <td className="p-8">
                       <div className="flex flex-col gap-2">
-                        <span className="text-green-500 font-black tracking-[3px] bg-green-500/5 px-3 py-1.5 rounded-xl border border-green-500/20 w-fit">
-                          {doc.conteudo_extraido?.placa || "N/A"}
+                        <span className="text-green-500 font-black tracking-[2px] bg-green-500/5 px-2 py-1 rounded-lg border border-green-500/20 w-fit">
+                          {doc.conteudo_extraido?.placa || "---"}
                         </span>
-                        <span className="text-[9px] text-zinc-600 font-mono italic">
-                          {doc.conteudo_extraido?.chassi || "CHASSI NÃO LOCALIZADO"}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`h-1.5 w-1.5 rounded-full ${doc.status_conformidade === 'CONFORME' ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
+                          <span className="text-[9px] font-black uppercase text-zinc-600">{doc.status_conformidade}</span>
+                        </div>
                       </div>
                     </td>
                     <td className="p-8">
                        <textarea 
-                        className="bg-zinc-900/30 border border-zinc-800 rounded-2xl p-4 text-[11px] w-full h-20 outline-none focus:border-green-500/50 text-zinc-400 transition-all scrollbar-hide"
-                        placeholder="PhD: Insira aqui a legenda técnica ou análise pericial..."
+                        className="bg-zinc-900/30 border border-zinc-800/50 rounded-xl p-3 text-[11px] w-full h-16 outline-none focus:border-green-500/50 text-zinc-400 transition-all resize-none"
+                        placeholder="Adicionar legenda para o laudo..."
                         defaultValue={doc.legenda_tecnica}
-                        onBlur={(e) => updateField(doc.id, 'legenda_tecnica', e.target.value)}
+                        onBlur={(e) => salvarLegenda(doc.id, e.target.value)}
                        />
                     </td>
-                    <td className="p-8 text-right">
-                      <div className="flex justify-end gap-3">
-                        <button className="p-4 bg-zinc-900 rounded-2xl hover:text-green-500 border border-transparent hover:border-green-500/20 transition-all">
-                          <Printer size={20}/>
-                        </button>
-                      </div>
+                    <td className="p-8 text-right space-x-2">
+                       <button className="p-3 bg-zinc-900 rounded-xl hover:text-green-500 transition-all border border-transparent hover:border-green-500/20">
+                         <Printer size={18}/>
+                       </button>
+                       <button onClick={() => deletarDoc(doc.id)} className="p-3 bg-zinc-900 rounded-xl hover:text-red-500 transition-all border border-transparent hover:border-red-500/20">
+                         <Trash2 size={18}/>
+                       </button>
                     </td>
                   </tr>
                 ))}
