@@ -2,10 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import * as pdfjsLib from 'pdfjs-dist';
 import { 
-  ShieldCheck, FileSearch, Search, Printer, UploadCloud, 
-  Loader2, Building2, Trash2, Info, Zap, Truck, Database
+  ShieldCheck, Search, Printer, UploadCloud, 
+  Loader2, Building2, Trash2, FileSearch, Database
 } from 'lucide-react';
 
+// Conexão Direta (Igual ao seu Teste 1 que funcionou)
 const supabase = createClient(
   'https://gmhxmtlidgcgpstxiiwg.supabase.co', 
   'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'
@@ -13,191 +14,202 @@ const supabase = createClient(
 
 export default function App() {
   const [docs, setDocs] = useState([]);
-  const [logs, setLogs] = useState([]);
   const [busca, setBusca] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [carregando, setCarregando] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Inicialização Robusta (Lógica do Teste 1)
+  // Carregamento Simples (Baseado no Teste 1)
   useEffect(() => {
     pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
-    buscarDados();
+    puxarDados();
   }, []);
 
-  async function buscarDados() {
+  async function puxarDados() {
     const { data } = await supabase
       .from('documentos_processados')
       .select('*')
       .order('data_leitura', { ascending: false });
     if (data) setDocs(data);
-    setLoading(false);
   }
 
-  // Motor de Auditoria - Varredura por Caractere
-  const realizarAuditoria = (texto, nome) => {
-    const pMatch = texto.match(/[A-Z]{3}[- ]?[0-9][A-Z0-9][0-9]{2}/gi);
-    const placa = pMatch ? pMatch[0].toUpperCase().replace(/[- ]/g, "") : "FROTA";
+  // Lógica de Auditoria Pericial (Extraída do seu OFICIO e PLANILHA)
+  const analisarTexto = (texto) => {
+    const placa = (texto.match(/[A-Z]{3}[- ]?[0-9][A-Z0-9][0-9]{2}/gi) || ["FROTA"])[0].toUpperCase().replace(/[- ]/g, "");
     
-    let analise = { status: 'NORMAL', msg: 'Documento validado para o processo SEMAS.' };
-
-    // Varredura de Portarias e Isenções baseada nos seus documentos reais
-    if (/127\/2022/i.test(texto) || (/NOTA FISCAL|DANFE/i.test(texto) && /2025/i.test(texto))) {
-      analise = { status: 'ISENTO', msg: 'VEÍCULO 0KM: Isenção de CIV conforme Portaria 127/2022 INMETRO.' };
-    } else if (/15793/i.test(texto) || /LO/i.test(nome)) {
-      analise = { status: 'LO', msg: 'Licença de Operação SEMAS/PA. Vigência até 24/09/2029.' };
-    } else if (/CTPP/i.test(texto) || /A073/i.test(texto)) {
-      analise = { status: 'CTPP', msg: 'CTPP de Construção Identificado. Verifique data da 1ª inspeção.' };
+    let parecer = "Documento em análise para renovação SEMAS.";
+    
+    if (/127\/2022/i.test(texto) || /0 ?KM/i.test(texto)) {
+      parecer = "ISENTO: Veículo 0km (Portaria 127/2022). Dispensado de CIV por 12 meses.";
+    } else if (/15793/i.test(texto)) {
+      parecer = "LO 15793/2025: Licença válida até 24/09/2029. Manter CRLV atualizado.";
+    } else if (/A073/i.test(texto) || /CTPP/i.test(texto)) {
+      parecer = "CTPP IDENTIFICADO: Equipamento novo. Primeira inspeção em 21/07/2026.";
     }
 
-    return { placa, ...analise };
+    return { placa, parecer };
   };
 
-  const handleUpload = async (files) => {
-    const list = Array.from(files);
-    for (const file of list) {
-      const id = Math.random();
-      setLogs(p => [{ id, msg: `Lendo: ${file.name}`, status: 'proc' }, ...p]);
-      
+  const processarArquivos = async (files) => {
+    setCarregando(true);
+    const lista = Array.from(files);
+
+    for (const file of lista) {
       try {
-        let textoFinal = file.name;
+        let conteudo = file.name;
         if (file.name.toLowerCase().endsWith('.pdf')) {
-          const buf = await file.arrayBuffer();
-          const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
-          let extraido = "";
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          let textoExtraido = "";
           for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const content = await page.getTextContent();
-            extraido += content.items.map(s => s.str).join(" ") + " ";
+            const pagina = await pdf.getPage(i);
+            const content = await pagina.getTextContent();
+            textoExtraido += content.items.map(s => s.str).join(" ") + " ";
           }
-          textoFinal = extraido;
+          conteudo = textoExtraido;
         }
 
-        const res = realizarAuditoria(textoFinal, file.name);
+        const auditoria = analisarTexto(conteudo);
 
         await supabase.from('documentos_processados').insert([{
           unidade_id: '8694084d-26a9-4674-848e-67ee5e1ba4d4',
           nome_arquivo: file.name,
           tipo_doc: file.name.split('.').pop().toUpperCase(),
-          conteudo_extraido: res,
-          status_conformidade: res.status,
-          legenda_tecnica: res.msg
+          conteudo_extraido: auditoria,
+          status_conformidade: "PROCESSADO",
+          legenda_tecnica: auditoria.parecer
         }]);
-
-        setLogs(p => p.map(l => l.id === id ? { ...l, msg: `Concluído: ${res.placa}`, status: 'done' } : l));
-        buscarDados();
-      } catch (err) {
-        setLogs(p => p.map(l => l.id === id ? { ...l, msg: 'Erro de leitura', status: 'err' } : l));
+      } catch (e) {
+        console.error("Erro no processamento:", e);
       }
     }
+    await puxarDados();
+    setCarregando(false);
   };
 
   return (
-    <div className="min-h-screen bg-black text-zinc-300 font-sans flex flex-col">
-      {/* HEADER FIXO - TELA INTEIRA */}
-      <header className="h-20 border-b border-zinc-900 bg-black/90 flex items-center justify-between px-10 sticky top-0 z-50">
+    <div className="min-h-screen bg-[#0a0a0a] text-zinc-300 font-sans select-none">
+      
+      {/* HEADER LIMPO - SEM DELAY */}
+      <header className="h-20 bg-black border-b border-zinc-900 flex items-center justify-between px-10 sticky top-0 z-50">
         <div className="flex items-center gap-4">
-          <div className="p-2 bg-green-600 rounded-lg"><ShieldCheck size={24} className="text-black" /></div>
-          <h1 className="text-xl font-black text-white uppercase tracking-tighter">Maximus <span className="text-green-500">v22</span></h1>
-        </div>
-        
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={18} />
-          <input 
-            className="bg-zinc-900 border border-zinc-800 rounded-xl py-2.5 pl-12 pr-6 text-xs w-96 outline-none focus:border-green-500 transition-all"
-            placeholder="Filtrar por placa ou documento..."
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-          />
+          <div className="p-2 bg-green-600 rounded-lg shadow-[0_0_20px_rgba(34,197,94,0.2)]">
+            <ShieldCheck size={24} className="text-black" />
+          </div>
+          <h1 className="text-xl font-black text-white uppercase tracking-tighter">MAXIMUS <span className="text-green-500">PHD</span></h1>
         </div>
 
-        <div className="flex items-center gap-4 text-[10px] font-bold text-zinc-500 uppercase">
-          <Database size={14} /> Conectado: Unidade Marabá
+        <div className="flex items-center gap-6">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={18} />
+            <input 
+              className="bg-zinc-900 border border-zinc-800 rounded-full py-2 pl-12 pr-6 text-xs w-80 outline-none focus:border-green-500 transition-all text-white"
+              placeholder="Localizar placa ou documento..."
+              onChange={(e) => setBusca(e.target.value)}
+            />
+          </div>
+          <button 
+            onClick={() => fileInputRef.current.click()}
+            className="bg-white text-black font-black px-6 py-2 rounded-full text-xs uppercase hover:bg-green-500 transition-all flex items-center gap-2"
+          >
+            {carregando ? <Loader2 size={16} className="animate-spin"/> : <UploadCloud size={16}/>}
+            {carregando ? "Processando..." : "Upload Auditoria"}
+          </button>
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* SIDEBAR DE STATUS */}
-        <aside className="w-72 border-r border-zinc-900 p-6 space-y-6 bg-black/50 overflow-y-auto">
-          <button 
-            onClick={() => fileInputRef.current.click()}
-            className="w-full bg-green-600 hover:bg-green-500 text-black font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all uppercase text-xs"
-          >
-            <UploadCloud size={20} /> Novo Documento
-          </button>
-
-          <div className="space-y-4">
-            <h3 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Logs de Processamento</h3>
-            {logs.map(log => (
-              <div key={log.id} className="text-[10px] bg-zinc-900/50 p-3 rounded-lg border border-zinc-800 flex items-center gap-3">
-                {log.status === 'proc' ? <Loader2 size={12} className="animate-spin text-yellow-500"/> : <CheckCircle2 size={12} className="text-green-500"/>}
-                <span className="truncate">{log.msg}</span>
-              </div>
-            ))}
+      {/* ÁREA PRINCIPAL - FOCO TOTAL NOS DADOS */}
+      <main className="p-10 max-w-[1600px] mx-auto">
+        <div className="mb-10 flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-black text-white uppercase italic">Painel de Controle de Frota</h2>
+            <p className="text-xs text-zinc-600 font-bold uppercase tracking-[4px] mt-2">Cardoso & Rates • Unidade Marabá/PA</p>
           </div>
-        </aside>
-
-        {/* ÁREA DE TRABALHO - TELA INTEIRA */}
-        <main className="flex-1 overflow-y-auto p-10 bg-[radial-gradient(circle_at_center,_#111_0%,_#000_100%)]">
-          <div className="mb-8 flex items-end justify-between">
-            <div>
-              <h2 className="text-2xl font-black text-white uppercase tracking-tight">Painel de Auditoria</h2>
-              <p className="text-xs text-zinc-500 mt-1 uppercase tracking-widest font-bold">Cardoso & Rates Engenharia - Marabá/PA</p>
-            </div>
-            <div className="flex gap-4">
-               <div className="bg-zinc-900 px-6 py-3 rounded-2xl border border-zinc-800 text-center">
-                  <p className="text-[9px] text-zinc-500 uppercase font-black">Sincronizados</p>
-                  <p className="text-xl font-black text-white">{docs.length}</p>
-               </div>
+          <div className="flex gap-4">
+            <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-3xl text-center min-w-[150px]">
+              <p className="text-[10px] text-zinc-500 font-black uppercase">Sincronizados</p>
+              <p className="text-2xl font-black text-green-500">{docs.length}</p>
             </div>
           </div>
+        </div>
 
-          <div className="bg-zinc-900/30 border border-zinc-900 rounded-[2rem] overflow-hidden">
-            <table className="w-full text-left">
-              <thead className="bg-black text-[10px] font-black text-zinc-600 uppercase tracking-widest border-b border-zinc-900">
-                <tr>
-                  <th className="p-8">Arquivo</th>
-                  <th className="p-8">Placa</th>
-                  <th className="p-8">Parecer Técnico</th>
-                  <th className="p-8 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {docs.filter(d => d.nome_arquivo.toLowerCase().includes(busca.toLowerCase())).map((doc) => (
-                  <tr key={doc.id} className="border-b border-zinc-900/50 hover:bg-white/[0.02] transition-colors">
-                    <td className="p-8">
-                      <div className="flex items-center gap-4">
-                        <div className="p-3 bg-zinc-900 rounded-xl border border-zinc-800"><FileSearch className="text-zinc-500" size={20}/></div>
-                        <div>
-                          <p className="text-sm font-black text-white uppercase truncate w-64">{doc.nome_arquivo}</p>
-                          <p className="text-[9px] text-zinc-600 font-bold uppercase mt-1">{doc.tipo_doc} • {new Date(doc.data_leitura).toLocaleDateString()}</p>
-                        </div>
+        {/* TABELA ROBUSTA */}
+        <div className="bg-black border border-zinc-900 rounded-[2.5rem] overflow-hidden shadow-2xl">
+          <table className="w-full text-left">
+            <thead className="bg-[#050505] text-[10px] font-black text-zinc-600 uppercase tracking-widest border-b border-zinc-900">
+              <tr>
+                <th className="p-8">Identificação do Arquivo</th>
+                <th className="p-8 text-center">Placa</th>
+                <th className="p-8">Parecer de Auditoria (Varredura Total)</th>
+                <th className="p-8 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-900">
+              {docs.filter(d => d.nome_arquivo.toLowerCase().includes(busca.toLowerCase())).map((doc) => (
+                <tr key={doc.id} className="hover:bg-white/[0.01] transition-colors group">
+                  <td className="p-8">
+                    <div className="flex items-center gap-5">
+                      <div className="w-14 h-14 bg-zinc-900 rounded-2xl flex items-center justify-center border border-zinc-800 group-hover:border-green-500/50 transition-all">
+                        <FileSearch size={24} className="text-zinc-600"/>
                       </div>
-                    </td>
-                    <td className="p-8">
-                      <span className="bg-black border border-zinc-800 text-green-500 px-4 py-2 rounded-lg font-black tracking-widest text-sm">
-                        {doc.conteudo_extraido?.placa || "---"}
-                      </span>
-                    </td>
-                    <td className="p-8">
-                       <div className="max-w-md bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-                          <p className="text-xs text-zinc-400 leading-relaxed italic">"{doc.legenda_tecnica}"</p>
-                       </div>
-                    </td>
-                    <td className="p-8 text-right">
-                       <div className="flex justify-end gap-2">
-                          <button className="p-3 bg-zinc-900 hover:text-green-500 rounded-xl transition-all border border-zinc-800"><Printer size={18}/></button>
-                          <button onClick={async () => { await supabase.from('documentos_processados').delete().eq('id', doc.id); buscarDados(); }} className="p-3 bg-zinc-900 hover:text-red-500 rounded-xl transition-all border border-zinc-800"><Trash2 size={18}/></button>
-                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </main>
-      </div>
-      
-      <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleUpload(e.target.files)} />
+                      <div>
+                        <p className="font-black text-white uppercase text-sm truncate max-w-xs">{doc.nome_arquivo}</p>
+                        <p className="text-[9px] text-zinc-600 font-bold uppercase mt-1 italic">{new Date(doc.data_leitura).toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="p-8 text-center">
+                    <span className="bg-zinc-900 border border-zinc-800 text-white px-4 py-2 rounded-lg font-black tracking-widest text-sm shadow-inner">
+                      {doc.conteudo_extraido?.placa || "---"}
+                    </span>
+                  </td>
+                  <td className="p-8">
+                    <div className="bg-zinc-900/30 border border-zinc-800/50 p-4 rounded-2xl max-w-lg">
+                      <p className="text-xs text-zinc-400 font-medium leading-relaxed italic uppercase">
+                        {doc.legenda_tecnica}
+                      </p>
+                    </div>
+                  </td>
+                  <td className="p-8 text-right">
+                    <div className="flex justify-end gap-3 opacity-30 group-hover:opacity-100 transition-opacity">
+                      <button className="p-3 bg-zinc-900 hover:text-green-500 rounded-xl border border-zinc-800"><Printer size={18}/></button>
+                      <button 
+                        onClick={async () => { await supabase.from('documentos_processados').delete().eq('id', doc.id); puxarDados(); }}
+                        className="p-3 bg-zinc-900 hover:text-red-500 rounded-xl border border-zinc-800"
+                      >
+                        <Trash2 size={18}/>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          
+          {docs.length === 0 && (
+            <div className="p-20 text-center text-zinc-700 uppercase font-black tracking-[10px]">
+              Aguardando Upload de Documentos
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* INPUT ESCONDIDO */}
+      <input 
+        ref={fileInputRef} 
+        type="file" 
+        multiple 
+        className="hidden" 
+        onChange={(e) => processarArquivos(e.target.files)} 
+      />
+
+      {/* BARRA DE STATUS INFERIOR */}
+      <footer className="fixed bottom-0 w-full h-10 bg-black border-t border-zinc-900 flex items-center px-10 justify-between text-[9px] font-black text-zinc-600 uppercase tracking-widest">
+        <span>Engenharia de Frota • Cardoso & Rates</span>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          Sistema Estabilizado (Lógica Teste 1)
+        </div>
+      </footer>
     </div>
   );
 }
