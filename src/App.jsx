@@ -6,10 +6,9 @@ import {
   ShieldCheck, FileText, Search, Printer, 
   UploadCloud, Loader2, Building2, 
   Camera, Cloud, CheckCircle2, 
-  FileSpreadsheet, HardHat, Trash2, Scale
+  FileSpreadsheet, HardHat, Trash2, Scale, AlertCircle
 } from 'lucide-react';
 
-// Credenciais Maximus PhD
 const supabase = createClient(
   'https://gmhxmtlidgcgpstxiiwg.supabase.co', 
   'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'
@@ -37,163 +36,158 @@ export default function App() {
       .from('documentos_processados')
       .select('*')
       .order('data_leitura', { ascending: false });
-    
     if (!error && data) setDocs(data);
     setLoading(false);
   };
 
-  const extrairDadosAuditoria = (texto) => {
+  // Lógica de Auditoria Avançada para SEMAS/PA
+  const realizarAuditoriaDoutorado = (texto, nomeArquivo) => {
     const placa = (texto.match(/[A-Z]{3}[- ]?[0-9][A-Z0-9][0-9]{2}/gi) || [])[0]?.toUpperCase().replace(/[- ]/g, "") || "---";
     const chassi = (texto.match(/[A-HJ-NPR-Z0-9]{17}/gi) || [])[0] || "---";
-    const temAntt = /ANTT|RNTRC|ANTC/i.test(texto);
-    return { placa, chassi, status_conformidade: temAntt ? 'CONFORME' : 'ALERTA' };
+    
+    // Identifica se é Nota Fiscal de Veículo Novo (Isenção CIV)
+    const eNotaFiscal = /NOTA FISCAL|DANFE/i.test(texto) || nomeArquivo.toLowerCase().includes('nf');
+    const eZeroKm = eNotaFiscal && (/0KM|ZERO KM|ANO FABRICACAO 2025/i.test(texto));
+    
+    // Identifica CTPP e Validade
+    const eCTPP = /CTPP|INMETRO/i.test(texto);
+    const vencimentoCTPP = (texto.match(/\d{2}\/[A-Z]{3}\/\d{2}/gi) || [])[0] || "---";
+
+    let analiseDoc = "Documento padrão analisado.";
+    if (eZeroKm) analiseDoc = "VEÍCULO 0KM: Isento de CIV por 12 meses (Portaria Inmetro 127/2022).";
+    if (eCTPP) analiseDoc = `CTPP Identificado. Vencimento: ${vencimentoCTPP}`;
+
+    return {
+      placa,
+      chassi,
+      status: (eCTPP || eZeroKm || /ANTT/i.test(texto)) ? 'CONFORME' : 'ANÁLISE',
+      detalhes: analiseDoc
+    };
   };
 
-  const handleUploadUniversal = async (files) => {
+  const handleUpload = async (files) => {
     const fileList = Array.from(files);
     for (const file of fileList) {
       const logId = Date.now();
-      setLogs(prev => [{ id: logId, status: 'loading', msg: `Analizando: ${file.name}` }, ...prev]);
+      setLogs(prev => [{ id: logId, status: 'loading', msg: `Auditoria técnica: ${file.name}` }, ...prev]);
+      
       try {
-        let content = "";
+        let textContent = "";
         const ext = file.name.split('.').pop().toLowerCase();
+
         if (ext === 'pdf') {
           const buffer = await file.arrayBuffer();
           const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
           for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
             const text = await page.getTextContent();
-            content += text.items.map(s => s.str).join(" ") + " ";
+            textContent += text.items.map(s => s.str).join(" ") + " ";
           }
-        } else if (['xlsx', 'xls', 'csv'].includes(ext)) {
-          const buffer = await file.arrayBuffer();
-          const wb = XLSX.read(buffer);
-          content = XLSX.utils.sheet_to_txt(wb.Sheets[wb.SheetNames[0]]);
         }
-        const info = extrairDadosAuditoria(content);
+
+        const auditoria = realizarAuditoriaDoutorado(textContent, file.name);
+
         await supabase.from('documentos_processados').insert([{
           unidade_id: UNIDADE_ID,
           nome_arquivo: file.name,
           tipo_doc: ext.toUpperCase(),
-          conteudo_extraido: info,
-          status_conformidade: info.status_conformidade,
-          legenda_tecnica: ['jpg', 'jpeg', 'png'].includes(ext) ? 'Pendente...' : ''
+          conteudo_extraido: auditoria,
+          status_conformidade: auditoria.status,
+          legenda_tecnica: auditoria.detalhes
         }]);
+
         setLogs(prev => prev.map(l => l.id === logId ? { ...l, status: 'success', msg: `Sincronizado: ${file.name}` } : l));
         fetchData();
       } catch (err) {
-        setLogs(prev => prev.map(l => l.id === logId ? { ...l, status: 'error', msg: `Erro no arquivo` } : l));
+        setLogs(prev => prev.map(l => l.id === logId ? { ...l, status: 'error', msg: `Erro no processamento` } : l));
       }
-    }
-  };
-
-  const updateLegenda = async (id, val) => {
-    await supabase.from('documentos_processados').update({ legenda_tecnica: val }).eq('id', id);
-  };
-
-  const deletarRegistro = async (id) => {
-    if(confirm("Excluir evidência?")) {
-      await supabase.from('documentos_processados').delete().eq('id', id);
-      fetchData();
     }
   };
 
   if (!isMounted) return null;
 
   return (
-    <div className="flex h-screen bg-[#050505] text-zinc-400 font-sans overflow-hidden">
+    <div className="flex h-screen bg-[#020202] text-zinc-400 font-sans overflow-hidden">
       {/* SIDEBAR */}
-      <aside className="w-72 bg-[#080808] border-r border-zinc-900 p-6 flex flex-col gap-8">
-        <div className="flex items-center gap-3">
-          <ShieldCheck size={32} className="text-green-500" />
-          <h1 className="text-xl font-black text-white italic tracking-tighter">MAXIMUS <span className="text-green-500 text-xs">PhD</span></h1>
+      <aside className="w-72 bg-[#050505] border-r border-zinc-900/50 p-6 flex flex-col gap-8 shadow-2xl">
+        <div className="flex items-center gap-3 py-4">
+          <div className="bg-green-500 p-2.5 rounded-2xl shadow-[0_0_20px_rgba(34,197,94,0.3)]">
+            <ShieldCheck size={28} className="text-black" />
+          </div>
+          <h1 className="text-xl font-black text-white italic tracking-tighter">MAXIMUS <span className="text-green-500 text-[10px] not-italic tracking-widest ml-1">PhD</span></h1>
         </div>
-        <nav className="space-y-2">
-          <button className="w-full flex items-center gap-3 p-3 bg-green-500/10 text-green-500 rounded-xl text-xs font-bold border border-green-500/20"><HardHat size={16}/> Auditoria</button>
-          <button className="w-full flex items-center gap-3 p-3 hover:bg-zinc-900 rounded-xl text-xs transition-all"><Camera size={16}/> Fotos</button>
-          <button className="w-full flex items-center gap-3 p-3 hover:bg-zinc-900 rounded-xl text-xs transition-all"><Scale size={16}/> Leis</button>
+        <nav className="flex flex-col gap-2">
+          <button className="flex items-center gap-4 p-4 bg-green-500/10 text-green-500 border border-green-500/20 rounded-2xl text-[11px] font-bold uppercase tracking-widest"><HardHat size={18}/> Auditoria Técnica</button>
+          <button className="flex items-center gap-4 p-4 hover:bg-zinc-900 rounded-2xl text-[11px] font-bold uppercase tracking-widest"><Camera size={18}/> Relatório de Fotos</button>
+          <button className="flex items-center gap-4 p-4 hover:bg-zinc-900 rounded-2xl text-[11px] font-bold uppercase tracking-widest"><Scale size={18}/> Processos SEMAS</button>
         </nav>
-        <div className="mt-auto p-4 bg-zinc-900/50 rounded-2xl border border-zinc-800">
-          <div className="flex items-center gap-2 text-[10px] text-white font-bold mb-1"><Cloud size={14} className="text-green-500"/> DATABASE LIVE</div>
-          <p className="text-[9px] text-zinc-600 truncate">Sincronizado: {UNIDADE_ID}</p>
-        </div>
       </aside>
 
-      {/* MAIN CONTENT */}
-      <main className="flex-1 flex flex-col bg-[radial-gradient(circle_at_top_right,_rgba(34,197,94,0.03)_0%,_transparent_50%)]">
-        <header className="p-6 border-b border-zinc-900 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Building2 className="text-green-500" size={24}/>
+      {/* PAINEL PRINCIPAL */}
+      <main className="flex-1 flex flex-col bg-[radial-gradient(circle_at_top_right,_rgba(34,197,94,0.04)_0%,_transparent_50%)]">
+        <header className="p-8 border-b border-zinc-900/50 flex justify-between items-center backdrop-blur-xl">
+          <div className="flex items-center gap-5">
+            <Building2 className="text-green-500" size={28}/>
             <div>
-              <h2 className="text-sm font-bold text-white uppercase tracking-tight">Cardoso & Rates Engenharia</h2>
-              <p className="text-[10px] text-zinc-500 font-medium">Licenciamento Ambiental - Estado do Pará</p>
+              <h2 className="text-sm font-black text-white uppercase tracking-[2px]">Cardoso & Rates Engenharia</h2>
+              <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-[3px]">Sistema de Gestão Ambiental</p>
             </div>
           </div>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" size={16} />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-700" size={18} />
             <input 
-              className="bg-black border border-zinc-800 rounded-xl py-2 pl-10 pr-4 text-xs w-64 focus:border-green-500 outline-none transition-all"
-              placeholder="Pesquisar placa ou arquivo..."
+              className="bg-black border border-zinc-800 rounded-2xl py-3 pl-12 pr-6 text-[11px] w-[350px] focus:border-green-500 outline-none transition-all"
+              placeholder="Pesquisar por placa ou documento..."
               onChange={(e) => setBusca(e.target.value)}
             />
           </div>
         </header>
 
-        <div className="p-8 overflow-y-auto space-y-6">
+        <div className="p-8 overflow-y-auto space-y-8 scrollbar-hide">
           {/* DROP ZONE */}
           <div 
             onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => { e.preventDefault(); handleUploadUniversal(e.dataTransfer.files); }}
+            onDrop={(e) => { e.preventDefault(); handleUpload(e.dataTransfer.files); }}
             onClick={() => fileInputRef.current.click()}
-            className="border-2 border-dashed border-zinc-800 p-12 rounded-[2rem] text-center hover:border-green-500/30 transition-all cursor-pointer group bg-zinc-900/10"
+            className="w-full bg-zinc-900/5 border-2 border-dashed border-zinc-800/80 p-12 rounded-[2.5rem] text-center hover:border-green-500/40 transition-all cursor-pointer group shadow-2xl"
           >
-            <UploadCloud size={48} className="mx-auto mb-4 text-zinc-700 group-hover:text-green-500 transition-all" />
-            <p className="text-xs font-bold text-white uppercase tracking-widest">Drop Zone Maximus PhD</p>
-            <p className="text-[10px] text-zinc-600 mt-2">PDF, XLSX, DOCX e Imagens simultâneos</p>
-            <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleUploadUniversal(e.target.files)} />
+            <UploadCloud size={50} className="mx-auto mb-4 text-zinc-800 group-hover:text-green-500 transition-all" />
+            <h3 className="text-xs font-black text-white uppercase tracking-[5px]">Arraste os 13 Arquivos Aqui</h3>
+            <p className="text-[9px] text-zinc-600 mt-2 uppercase tracking-[2px]">Detecção automática de Placas, Chassis e Isenções Inmetro</p>
+            <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleUpload(e.target.files)} />
           </div>
 
-          {/* TABELA */}
-          <div className="bg-[#080808] border border-zinc-900 rounded-2xl overflow-hidden shadow-2xl">
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-zinc-900/50 text-[10px] uppercase font-black text-zinc-500 tracking-widest border-b border-zinc-900">
+          {/* TABELA DE AUDITORIA */}
+          <div className="bg-[#080808] border border-zinc-900 rounded-[2rem] overflow-hidden shadow-2xl">
+            <table className="w-full text-left">
+              <thead className="bg-zinc-900/50 text-[10px] uppercase font-black text-zinc-600 tracking-widest border-b border-zinc-900">
                 <tr>
-                  <th className="p-4">Documento</th>
-                  <th className="p-4">Auditoria</th>
-                  <th className="p-4">Análise / Legenda</th>
-                  <th className="p-4 text-right">Ações</th>
+                  <th className="p-6">Documento</th>
+                  <th className="p-6">Placa/Chassi</th>
+                  <th className="p-6">Análise PhD</th>
+                  <th className="p-6 text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="text-xs">
+              <tbody className="text-[11px]">
                 {docs.filter(d => d.nome_arquivo.toLowerCase().includes(busca.toLowerCase())).map((doc) => (
-                  <tr key={doc.id} className="border-b border-zinc-900/50 hover:bg-white/[0.01]">
-                    <td className="p-4 flex items-center gap-4">
-                      <div className="p-2 bg-zinc-900 rounded-lg text-zinc-600">
-                        {doc.tipo_doc === 'PDF' ? <FileText size={18}/> : <FileSpreadsheet size={18}/>}
+                  <tr key={doc.id} className="border-t border-zinc-900/50 hover:bg-green-500/[0.01] group">
+                    <td className="p-6 flex items-center gap-4">
+                      <div className="p-3 bg-zinc-900 rounded-xl text-zinc-700 group-hover:text-green-500 border border-zinc-800/50 transition-colors">
+                        {doc.tipo_doc === 'PDF' ? <FileText size={20}/> : <FileSpreadsheet size={20}/>}
                       </div>
-                      <div>
-                        <p className="font-bold text-white truncate w-48">{doc.nome_arquivo}</p>
-                        <p className="text-[9px] text-zinc-600">{doc.tipo_doc} Sincronizado</p>
-                      </div>
+                      <span className="font-black text-white uppercase tracking-tighter truncate w-40">{doc.nome_arquivo}</span>
                     </td>
-                    <td className="p-4">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-green-500 font-mono font-bold tracking-wider">{doc.conteudo_extraido?.placa || "---"}</span>
-                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded w-fit ${doc.status_conformidade === 'CONFORME' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>
-                          {doc.status_conformidade}
-                        </span>
-                      </div>
+                    <td className="p-6">
+                      <span className="text-green-500 font-black tracking-widest bg-green-500/5 px-2 py-1 rounded border border-green-500/20">{doc.conteudo_extraido?.placa || "---"}</span>
                     </td>
-                    <td className="p-4">
-                       <textarea 
-                        className="bg-black border border-zinc-800 rounded-lg p-2 text-[10px] w-full h-12 outline-none focus:border-green-500 text-zinc-400 resize-none"
-                        defaultValue={doc.legenda_tecnica}
-                        onBlur={(e) => updateLegenda(doc.id, e.target.value)}
-                       />
+                    <td className="p-6">
+                       <div className="bg-zinc-900/30 p-3 rounded-xl border border-zinc-800/50 italic text-zinc-500">
+                          {doc.legenda_tecnica || "Análise automática em processamento..."}
+                       </div>
                     </td>
-                    <td className="p-4 text-right space-x-2">
-                       <button className="p-2 hover:text-green-500 transition-colors"><Printer size={16}/></button>
-                       <button onClick={() => deletarRegistro(doc.id)} className="p-2 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
+                    <td className="p-6 text-right">
+                       <button className="p-2 hover:text-green-500"><Printer size={16}/></button>
+                       <button onClick={async () => { await supabase.from('documentos_processados').delete().eq('id', doc.id); fetchData(); }} className="p-2 hover:text-red-500"><Trash2 size={16}/></button>
                     </td>
                   </tr>
                 ))}
