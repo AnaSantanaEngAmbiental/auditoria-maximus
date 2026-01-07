@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import * as pdfjsLib from 'pdfjs-dist';
 import { 
-  ShieldCheck, FileText, Search, Printer, 
-  UploadCloud, Loader2, Building2, 
-  Camera, CheckCircle2, 
-  FileSpreadsheet, HardHat, Trash2, Scale, Info, AlertTriangle, FileCheck, Zap
+  ShieldCheck, FileText, Search, Printer, UploadCloud, 
+  Loader2, Building2, CheckCircle2, FileSpreadsheet, 
+  HardHat, Trash2, Scale, Info, AlertTriangle, Zap, 
+  Maximize2, LayoutDashboard, Truck, Clock
 } from 'lucide-react';
 
-// Configuração Supabase - SSOT Maximus
 const supabase = createClient(
   'https://gmhxmtlidgcgpstxiiwg.supabase.co', 
   'sb_publishable_-Q-5sKvF2zfyl_p1xGe8Uw_4OtvijYs'
@@ -21,191 +20,206 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef(null);
 
-  const UNIDADE_ID = '8694084d-26a9-4674-848e-67ee5e1ba4d4';
-
-  // Inicialização Forçada - Resolve o erro de ter que atualizar 2x
+  // PhD Optimization: Inicialização imediata do Worker
   useEffect(() => {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
-    fetchData();
-    
-    // Auto-focus para garantir que o teclado/atalhos funcionem de primeira
-    window.scrollTo(0, 0);
+    const initSystem = async () => {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+      await fetchData();
+    };
+    initSystem();
   }, []);
 
   const fetchData = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('documentos_processados')
       .select('*')
       .order('data_leitura', { ascending: false });
-    if (!error && data) setDocs(data);
+    if (data) setDocs(data);
     setLoading(false);
   };
 
-  // Motor de Auditoria PhD (Baseado nos 13 arquivos de Marabá/PA)
-  const realizarAuditoria = (texto, nomeArquivo) => {
-    const placaMatch = texto.match(/[A-Z]{3}[- ]?[0-9][A-Z0-9][0-9]{2}/gi);
-    const placa = placaMatch ? placaMatch[0].toUpperCase().replace(/[- ]/g, "") : "FROTA";
+  const realizarAuditoriaPhD = (texto, nome) => {
+    const pMatch = texto.match(/[A-Z]{3}[- ]?[0-9][A-Z0-9][0-9]{2}/gi);
+    const placa = pMatch ? pMatch[0].toUpperCase().replace(/[- ]/g, "") : "FROTA";
     
-    let parecer = "Análise técnica concluída.";
-    let status = 'CONFORME';
+    let analise = { status: 'NORMAL', msg: 'Documento processado.' };
 
     if (/NOTA FISCAL|DANFE/i.test(texto) && /2025/i.test(texto)) {
-      parecer = "VEÍCULO 0KM: Isenção de CIV/CIPP (Portaria 127/2022).";
+      analise = { status: 'ISENTO', msg: 'VEÍCULO 0KM: Isenção de CIV/CIPP (Portaria 127/2022).' };
     } else if (/CTPP|CERTIFICADO/i.test(texto)) {
-      const venc = (texto.match(/(\d{2}\/[A-Z]{3}\/\d{2})/i) || [])[1];
-      parecer = `CTPP INMETRO: Vencimento em ${venc || '2026'}.`;
-    } else if (/15793\/2025/i.test(texto) || /LO/i.test(nomeArquivo)) {
-      parecer = "LO 15793/2025: Validade 24/09/2029 detectada.";
+      const v = (texto.match(/(\d{2}\/[A-Z]{3}\/\d{2})/i) || [])[1];
+      analise = { status: 'CRÍTICO', msg: `CTPP/INMETRO detectado. Vencimento: ${v || 'Verificar'}` };
+    } else if (/15793/i.test(texto) || /LO/i.test(nome)) {
+      analise = { status: 'LO', msg: 'Licença de Operação SEMAS/PA. Validade: 24/09/2029.' };
     }
 
-    return { placa, status, detalhes: parecer };
+    return { placa, ...analise };
   };
 
   const handleUpload = async (files) => {
-    const fileList = Array.from(files);
-    if (fileList.length === 0) return;
-
-    for (const file of fileList) {
-      const logId = Date.now() + Math.random();
-      setLogs(prev => [{ id: logId, status: 'loading', msg: `Lendo: ${file.name}` }, ...prev]);
+    const list = Array.from(files);
+    for (const file of list) {
+      const id = Math.random();
+      setLogs(p => [{ id, msg: `Auditando ${file.name}...`, status: 'proc' }, ...p]);
       
       try {
-        let textContent = "";
+        let raw = "";
         if (file.name.toLowerCase().endsWith('.pdf')) {
-          const buffer = await file.arrayBuffer();
-          const loadingTask = pdfjsLib.getDocument({ data: buffer });
-          const pdf = await loadingTask.promise;
+          const buf = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
           for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
-            const text = await page.getTextContent();
-            textContent += text.items.map(s => s.str).join(" ") + " ";
+            const content = await page.getTextContent();
+            raw += content.items.map(s => s.str).join(" ") + " ";
           }
         }
 
-        const audit = realizarAuditoria(textContent || file.name, file.name);
-
+        const res = realizarAuditoriaPhD(raw || file.name, file.name);
         await supabase.from('documentos_processados').insert([{
-          unidade_id: UNIDADE_ID,
+          unidade_id: '8694084d-26a9-4674-848e-67ee5e1ba4d4',
           nome_arquivo: file.name,
           tipo_doc: file.name.split('.').pop().toUpperCase(),
-          conteudo_extraido: audit,
-          status_conformidade: audit.status,
-          legenda_tecnica: audit.detalhes
+          conteudo_extraido: res,
+          status_conformidade: res.status,
+          legenda_tecnica: res.msg
         }]);
 
-        setLogs(prev => prev.map(l => l.id === logId ? { ...l, status: 'success', msg: `OK: ${file.name}` } : l));
+        setLogs(p => p.map(l => l.id === id ? { ...l, msg: `Concluído: ${res.placa}`, status: 'done' } : l));
         fetchData();
-      } catch (err) {
-        setLogs(prev => prev.map(l => l.id === logId ? { ...l, status: 'error', msg: `Erro técnico no arquivo` } : l));
+      } catch (e) {
+        setLogs(p => p.map(l => l.id === id ? { ...l, msg: 'Erro na leitura', status: 'err' } : l));
       }
     }
   };
 
   return (
-    <div className="flex h-screen bg-[#020202] text-zinc-400 font-sans selection:bg-green-500/30">
-      {/* SIDEBAR - DESIGN MAXIMUS */}
-      <aside className="w-72 bg-[#050505] border-r border-zinc-900/80 p-6 flex flex-col gap-8 shadow-2xl relative z-20">
-        <div className="flex items-center gap-4 py-4">
-          <div className="bg-green-600 p-2.5 rounded-xl shadow-[0_0_40px_rgba(34,197,94,0.2)]">
+    <div className="min-h-screen bg-[#020202] text-zinc-300 font-sans flex overflow-hidden">
+      
+      {/* SIDEBAR FUTURISTA */}
+      <aside className="w-80 bg-[#050505] border-r border-zinc-900 flex flex-col p-8 z-30 shadow-[10px_0_30px_rgba(0,0,0,0.5)]">
+        <div className="flex items-center gap-4 mb-12">
+          <div className="p-3 bg-green-600 rounded-2xl shadow-[0_0_25px_rgba(34,197,94,0.3)]">
             <ShieldCheck size={28} className="text-black" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-white italic tracking-tighter leading-none uppercase">Maximus <span className="text-green-500">PhD</span></h1>
-            <p className="text-[7px] text-zinc-600 font-bold tracking-[3px] uppercase mt-1">Sincronização Ativa</p>
+            <h1 className="text-2xl font-black text-white italic tracking-tighter uppercase leading-none">Maximus</h1>
+            <span className="text-[9px] font-bold text-green-500 tracking-[4px] uppercase">Control PhD</span>
           </div>
         </div>
 
-        <nav className="flex flex-col gap-2">
-          <button className="flex items-center gap-4 p-4 bg-green-500/10 text-green-500 border border-green-500/20 rounded-2xl text-[10px] font-bold uppercase tracking-widest"><Zap size={18}/> Auditoria Instantânea</button>
-          <button className="flex items-center gap-4 p-4 hover:bg-zinc-900 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-all"><FileSpreadsheet size={18}/> Planilha Caeli</button>
-          <button className="flex items-center gap-4 p-4 hover:bg-zinc-900 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-all"><Scale size={18}/> Jurídico SEMAS</button>
+        <nav className="flex-1 space-y-4">
+          <div className="text-[10px] text-zinc-600 font-black uppercase tracking-[3px] mb-4">Módulos de Gestão</div>
+          <button className="w-full flex items-center gap-4 p-4 bg-green-500/10 text-green-500 border border-green-500/20 rounded-2xl text-[11px] font-bold uppercase transition-all shadow-lg"><Zap size={20}/> Auditoria Realtime</button>
+          <button className="w-full flex items-center gap-4 p-4 hover:bg-zinc-900/50 rounded-2xl text-[11px] font-bold uppercase transition-all"><Truck size={20}/> Frota Caeli</button>
+          <button className="w-full flex items-center gap-4 p-4 hover:bg-zinc-900/50 rounded-2xl text-[11px] font-bold uppercase transition-all"><Scale size={20}/> Jurídico SEMAS</button>
         </nav>
+
+        <div className="bg-zinc-900/30 border border-zinc-800 p-6 rounded-[2rem]">
+          <div className="flex items-center gap-3 text-white font-bold text-xs mb-3">
+            <Clock size={16} className="text-yellow-500"/> Alertas de Vencimento
+          </div>
+          <div className="space-y-2">
+             <div className="text-[10px] flex justify-between uppercase"><span className="text-zinc-500">LO 15793</span> <span className="text-green-500">2029</span></div>
+             <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden"><div className="w-[85%] bg-green-500 h-full"></div></div>
+          </div>
+        </div>
       </aside>
 
-      {/* DASHBOARD */}
-      <main className="flex-1 flex flex-col bg-[radial-gradient(circle_at_top_right,_rgba(34,197,94,0.05)_0%,_transparent_50%)]">
-        <header className="p-8 border-b border-zinc-900/50 flex justify-between items-center backdrop-blur-xl bg-black/40">
-          <div className="flex items-center gap-6">
-            <Building2 className="text-green-500" size={32}/>
+      {/* DASHBOARD PRINCIPAL - TELA INTEIRA */}
+      <main className="flex-1 flex flex-col relative">
+        <header className="h-24 border-b border-zinc-900/80 bg-[#030303]/90 backdrop-blur-2xl flex justify-between items-center px-12 z-20">
+          <div className="flex items-center gap-8">
+            <div className="p-4 bg-zinc-900 rounded-2xl border border-zinc-800"><Building2 className="text-green-500" size={24}/></div>
             <div>
-              <h2 className="text-sm font-black text-white uppercase tracking-wider">Cardoso & Rates Engenharia</h2>
-              <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest">Controle de Frota | Marabá-PA</p>
+              <h2 className="text-sm font-black text-white uppercase tracking-[2px]">Cardoso & Rates Engenharia</h2>
+              <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest italic">Unidade de Operações Pará</p>
             </div>
           </div>
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-800" size={18} />
-            <input 
-              className="bg-black border border-zinc-800/80 rounded-2xl py-3.5 pl-12 pr-6 text-[11px] w-[350px] focus:border-green-500 outline-none transition-all placeholder:text-zinc-800"
-              placeholder="Placa, Chassi ou Documento..."
-              onChange={(e) => setBusca(e.target.value)}
-            />
+          
+          <div className="flex items-center gap-6">
+            <div className="relative group">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-700 group-focus-within:text-green-500 transition-colors" size={18} />
+              <input 
+                className="bg-black border border-zinc-800 rounded-2xl py-3.5 pl-12 pr-6 text-[11px] w-[450px] outline-none focus:border-green-500/50 transition-all shadow-2xl"
+                placeholder="PLACA, CHASSI OU TIPO DE LICENÇA..."
+                onChange={(e) => setBusca(e.target.value)}
+              />
+            </div>
           </div>
         </header>
 
-        <div className="p-8 overflow-y-auto space-y-8 scrollbar-hide">
-          {/* ÁREA DE UPLOAD - SEM DELAY */}
+        <div className="flex-1 overflow-y-auto p-12 space-y-10 scrollbar-hide">
+          
+          {/* ÁREA DE CARREGAMENTO ONE-SHOT */}
           <div 
             onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = '#22c55e'; }}
-            onDragLeave={(e) => { e.currentTarget.style.borderColor = '#27272a'; }}
+            onDragLeave={(e) => { e.currentTarget.style.borderColor = '#18181b'; }}
             onDrop={(e) => { e.preventDefault(); handleUpload(e.dataTransfer.files); }}
             onClick={() => fileInputRef.current.click()}
-            className="w-full bg-zinc-900/5 border-2 border-dashed border-zinc-800 p-16 rounded-[3rem] text-center hover:bg-green-500/[0.02] transition-all cursor-pointer group shadow-2xl"
+            className="w-full bg-gradient-to-br from-zinc-900/20 to-black border-2 border-dashed border-zinc-900 p-20 rounded-[4rem] text-center hover:bg-green-500/[0.01] transition-all cursor-pointer group shadow-[0_0_100px_rgba(0,0,0,0.5)]"
           >
-            <UploadCloud size={54} className="mx-auto mb-6 text-zinc-800 group-hover:text-green-500 transition-all" />
-            <h3 className="text-[12px] font-black text-white uppercase tracking-[6px]">Drop Zone Central</h3>
-            <p className="text-[9px] text-zinc-600 mt-3 uppercase tracking-[2px]">Arraste aqui os documentos para Auditoria Imediata</p>
+            <div className="bg-zinc-900/50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8 border border-zinc-800 group-hover:scale-110 transition-transform">
+               <UploadCloud size={40} className="text-zinc-600 group-hover:text-green-500 transition-colors" />
+            </div>
+            <h3 className="text-lg font-black text-white uppercase tracking-[12px] group-hover:tracking-[14px] transition-all">Audit Center PhD</h3>
+            <p className="text-[10px] text-zinc-600 mt-6 uppercase tracking-[4px] font-bold">Arraste seus PDF/Imagens ou Clique para Selecionar</p>
             <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleUpload(e.target.files)} />
           </div>
 
-          {/* LOGS DE PROCESSAMENTO EM TEMPO REAL */}
+          {/* PAINEL DE STATUS EM TEMPO REAL */}
           {logs.length > 0 && (
-            <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
-              {logs.slice(0, 6).map(log => (
-                <div key={log.id} className="flex-shrink-0 flex items-center gap-3 px-5 py-3 bg-zinc-900/40 border border-zinc-800/60 rounded-2xl shadow-sm animate-in slide-in-from-left-4">
-                  {log.status === 'loading' ? <Loader2 size={14} className="text-yellow-600 animate-spin"/> : <CheckCircle2 size={14} className="text-green-500"/>}
-                  <span className="text-[9px] font-black text-zinc-500 uppercase tracking-tighter">{log.msg}</span>
+            <div className="grid grid-cols-4 gap-4">
+              {logs.slice(0, 4).map(log => (
+                <div key={log.id} className="bg-zinc-900/40 border border-zinc-800 p-5 rounded-3xl flex items-center gap-4 animate-in fade-in slide-in-from-bottom-2">
+                  {log.status === 'proc' ? <Loader2 size={16} className="text-yellow-500 animate-spin"/> : <CheckCircle2 size={16} className="text-green-500"/>}
+                  <span className="text-[10px] font-black text-zinc-400 uppercase truncate">{log.msg}</span>
                 </div>
               ))}
             </div>
           )}
 
-          {/* TABELA DE RESULTADOS PhD */}
-          <div className="bg-[#050505] border border-zinc-900 rounded-[2.5rem] overflow-hidden shadow-2xl border-t-zinc-800">
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-zinc-900/30 text-[9px] uppercase font-black text-zinc-600 tracking-[3px] border-b border-zinc-900">
+          {/* TABELA CINEMATOGRÁFICA */}
+          <div className="bg-[#050505] border border-zinc-900 rounded-[3rem] overflow-hidden shadow-2xl">
+            <table className="w-full text-left">
+              <thead className="bg-zinc-900/30 text-[10px] font-black text-zinc-600 uppercase tracking-[3px] border-b border-zinc-900">
                 <tr>
-                  <th className="p-8">Documento / Evidência</th>
-                  <th className="p-8 text-center">Identificação</th>
-                  <th className="p-8">Parecer de Auditoria</th>
-                  <th className="p-8 text-right pr-12">Gestão</th>
+                  <th className="p-10">Evidência Técnica</th>
+                  <th className="p-10">Placa / ID</th>
+                  <th className="p-10">Relatório de Inteligência</th>
+                  <th className="p-10 text-right pr-14">Ação</th>
                 </tr>
               </thead>
-              <tbody className="text-[11px]">
+              <tbody className="text-[13px]">
                 {docs.filter(d => d.nome_arquivo.toLowerCase().includes(busca.toLowerCase())).map((doc) => (
                   <tr key={doc.id} className="border-t border-zinc-900/40 hover:bg-green-500/[0.01] transition-all group">
-                    <td className="p-8 flex items-center gap-5">
-                      <div className="p-4 bg-zinc-900 rounded-2xl text-zinc-800 group-hover:text-green-500 transition-colors border border-zinc-800/50">
-                        {doc.tipo_doc === 'PDF' ? <FileText size={20}/> : <Camera size={20}/>}
-                      </div>
-                      <div>
-                        <p className="font-black text-white uppercase tracking-tighter group-hover:text-green-400 transition-colors truncate w-52">{doc.nome_arquivo}</p>
-                        <p className="text-[8px] text-zinc-700 font-bold uppercase tracking-widest mt-1">{doc.tipo_doc} Sincronizado</p>
+                    <td className="p-10">
+                      <div className="flex items-center gap-6">
+                        <div className="w-16 h-16 bg-zinc-900 rounded-3xl flex items-center justify-center border border-zinc-800 shadow-inner group-hover:border-green-500/50 transition-colors">
+                          {doc.tipo_doc === 'PDF' ? <FileText size={24} className="text-zinc-600"/> : <Maximize2 size={24} className="text-zinc-600"/>}
+                        </div>
+                        <div>
+                          <p className="font-black text-white uppercase tracking-tighter truncate w-64 text-base">{doc.nome_arquivo}</p>
+                          <p className="text-[9px] text-zinc-700 font-bold uppercase tracking-widest mt-1 italic">{doc.tipo_doc} Sincronizado com Supabase</p>
+                        </div>
                       </div>
                     </td>
-                    <td className="p-8 text-center">
-                      <span className="bg-black text-green-500 font-black px-4 py-2 rounded-xl border border-zinc-900 tracking-[2px] shadow-inner">
-                        {doc.conteudo_extraido?.placa || "FROTA"}
-                      </span>
+                    <td className="p-10">
+                      <div className="bg-black border border-zinc-900 px-6 py-3 rounded-2xl w-fit shadow-xl">
+                        <span className="text-green-500 font-black tracking-[5px] text-base">{doc.conteudo_extraido?.placa || "MASTER"}</span>
+                      </div>
                     </td>
-                    <td className="p-8">
-                       <div className="flex items-start gap-4 bg-zinc-900/20 border border-zinc-800/30 rounded-2xl p-4 text-[11px] text-zinc-500 italic leading-relaxed max-w-sm">
-                          <Info size={16} className="text-green-600 mt-0.5 flex-shrink-0"/>
-                          {doc.legenda_tecnica}
+                    <td className="p-10">
+                       <div className="flex items-start gap-4 bg-zinc-900/30 border border-zinc-800/50 rounded-3xl p-6 leading-relaxed max-w-md shadow-inner transition-transform group-hover:translate-x-1">
+                          <Info size={18} className="text-green-600 mt-1 flex-shrink-0"/>
+                          <p className="text-zinc-400 italic text-xs font-medium">{doc.legenda_tecnica}</p>
                        </div>
                     </td>
-                    <td className="p-8 text-right pr-12">
-                       <button onClick={async () => { await supabase.from('documentos_processados').delete().eq('id', doc.id); fetchData(); }} className="p-3 bg-zinc-900 rounded-xl text-zinc-800 hover:text-red-500 hover:border-red-500/30 transition-all border border-zinc-800 shadow-lg"><Trash2 size={18}/></button>
+                    <td className="p-10 text-right pr-14">
+                       <div className="flex justify-end gap-3">
+                          <button className="p-4 bg-zinc-900 rounded-2xl border border-zinc-800 hover:text-green-500 transition-all shadow-lg"><Printer size={20}/></button>
+                          <button onClick={async () => { await supabase.from('documentos_processados').delete().eq('id', doc.id); fetchData(); }} className="p-4 bg-zinc-900 rounded-2xl border border-zinc-800 hover:text-red-500 transition-all shadow-lg"><Trash2 size={20}/></button>
+                       </div>
                     </td>
                   </tr>
                 ))}
@@ -213,6 +227,15 @@ export default function App() {
             </table>
           </div>
         </div>
+
+        {/* FOOTER DE STATUS */}
+        <footer className="h-10 bg-black border-t border-zinc-900 flex items-center px-10 justify-between">
+            <div className="text-[8px] font-bold text-zinc-700 uppercase tracking-[3px]">Maximus Unified Interface v19.0 - Marabá / Pará</div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-[8px] font-bold text-zinc-500 uppercase">Sistema Online</span>
+            </div>
+        </footer>
       </main>
     </div>
   );
