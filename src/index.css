@@ -2,8 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+/* CONFIGURAÇÃO GLOBAL DE ESTILO DARK MODE */
+:root {
+  color-scheme: dark;
+}
+
 body {
-  background-color: #050505; /* Garante fundo preto mesmo se o React demorar */
   margin: 0;
+  padding: 0;
+  background-color: #050505; /* Preto Profundo */
+  color: #e4e4e7; /* Texto Cinza Claro */
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar personalizada para o Maximus */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #18181b; 
+}
+::-webkit-scrollbar-thumb {
+  background: #27272a; 
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #22c55e; /* Verde Maximus no hover */
 }
