@@ -38,14 +38,11 @@ export default function App() {
     if (data) setDocs(data);
   };
 
-  const handleUpload = async (e) => {
-    const files = e.target.files || (e.dataTransfer && e.dataTransfer.files);
+  const handleFileChange = async (e) => {
+    const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    // Início imediato do log
-    const fileArray = Array.from(files);
-    
-    for (const file of fileArray) {
+    for (const file of Array.from(files)) {
       setLogs(prev => [{ status: 'loading', msg: `Lendo: ${file.name}` }, ...prev]);
       
       try {
@@ -81,46 +78,51 @@ export default function App() {
         setLogs(prev => [{ status: 'error', msg: `Erro: ${file.name}` }, ...prev]);
       }
     }
-    // RESET DO INPUT PARA O PRÓXIMO CLIQUE SER 100% LIMPO
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    e.target.value = ""; // Limpa para o próximo
   };
 
   if (!isMounted) return null;
 
   return (
-    <div className="min-h-screen bg-[#020202] text-zinc-400 font-sans p-2 md:p-4 text-[12px]">
+    <div className="min-h-screen bg-[#020202] text-zinc-400 font-sans p-2 text-[11px]">
       <div className="max-w-[1200px] mx-auto space-y-3">
         
-        {/* HEADER COMPACTO */}
-        <header className="flex items-center justify-between bg-zinc-900/20 p-3 rounded-lg border border-zinc-800/40 shadow-2xl">
-          <div className="flex items-center gap-3">
-            <ShieldCheck className="text-green-500" size={18} />
-            <h1 className="font-black text-white uppercase italic tracking-tighter">Maximus PhD Auditor</h1>
+        <header className="flex items-center justify-between bg-zinc-900/20 p-3 rounded-lg border border-zinc-800/40">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="text-green-500" size={16} />
+            <h1 className="font-black text-white uppercase italic tracking-tighter">Maximus Auditor</h1>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1 bg-black/40 rounded-full border border-zinc-800">
-            <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"></div>
-            <span className="text-[8px] font-bold text-zinc-500 uppercase">Live</span>
-          </div>
+          <span className="text-[8px] text-green-500 font-bold uppercase tracking-widest border border-green-500/20 px-2 py-0.5 rounded">Live</span>
         </header>
 
         <div className="grid grid-cols-12 gap-3">
           
           {/* LADO ESQUERDO */}
           <div className="col-span-12 lg:col-span-3 space-y-3">
-            <div 
-              onClick={() => fileInputRef.current.click()}
-              className="bg-green-500/5 border border-dashed border-green-500/20 p-8 rounded-xl text-center hover:bg-green-500/10 transition-all cursor-pointer group"
-            >
-              <UploadCloud className="mx-auto mb-2 text-green-500/40 group-hover:scale-110" size={28} />
-              <p className="text-[9px] font-black text-white uppercase tracking-[2px]">Processar Ofício</p>
-              <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleUpload} />
+            <div className="bg-zinc-900/10 border border-zinc-800/30 p-6 rounded-xl text-center">
+              {/* BOTÃO REAL PARA EVITAR 2X CLIQUE */}
+              <button 
+                onClick={() => fileInputRef.current.click()}
+                className="w-full bg-green-500/10 border border-green-500/40 hover:bg-green-500/20 text-green-500 py-4 rounded-lg flex flex-col items-center gap-2 transition-all active:scale-95"
+              >
+                <UploadCloud size={24} />
+                <span className="text-[9px] font-black uppercase tracking-widest">Selecionar Ofício</span>
+              </button>
+              <input 
+                ref={fileInputRef}
+                type="file" 
+                className="hidden" 
+                onChange={handleFileChange}
+                onClick={(e) => { e.stopPropagation(); }} // Impede o clique duplo fantasma
+              />
+              <p className="text-[8px] text-zinc-600 mt-3 uppercase tracking-tighter italic">Clique apenas uma vez</p>
             </div>
 
-            <div className="bg-zinc-900/10 border border-zinc-800/30 rounded-xl p-3 h-[250px] flex flex-col">
-              <span className="text-[8px] font-black text-zinc-600 uppercase mb-3 tracking-widest border-b border-zinc-900 pb-1">Logs</span>
-              <div className="flex-1 overflow-y-auto space-y-2 scrollbar-hide text-[9px]">
+            <div className="bg-zinc-900/10 border border-zinc-800/30 rounded-xl p-3 h-[200px] flex flex-col">
+              <span className="text-[8px] font-black text-zinc-600 uppercase mb-2 tracking-widest">Logs</span>
+              <div className="flex-1 overflow-y-auto space-y-1 scrollbar-hide">
                 {logs.map((log, i) => (
-                  <div key={i} className="flex gap-2 items-center text-zinc-500">
+                  <div key={i} className="flex gap-2 items-center text-zinc-500 leading-none py-1">
                     {log.status === 'success' ? <CheckCircle2 size={10} className="text-green-500" /> : <Loader2 size={10} className="text-yellow-500 animate-spin" />}
                     {log.msg}
                   </div>
@@ -131,43 +133,36 @@ export default function App() {
 
           {/* LADO DIREITO */}
           <div className="col-span-12 lg:col-span-9">
-            <div className="bg-zinc-900/5 border border-zinc-800/40 rounded-xl p-4 min-h-[500px]">
+            <div className="bg-zinc-900/5 border border-zinc-800/40 rounded-xl p-4 min-h-[450px]">
               <div className="flex items-center gap-2 mb-4">
-                <Database size={14} className="text-green-500" />
-                <h2 className="text-[10px] font-black text-zinc-200 uppercase tracking-widest italic">Base de Auditoria</h2>
+                <Database size={12} className="text-green-500" />
+                <h2 className="text-[10px] font-black text-zinc-200 uppercase tracking-widest">Base de Dados</h2>
               </div>
 
               <div className="space-y-2">
                 {docs.map((doc) => (
-                  <div key={doc.id} className="bg-zinc-950/60 border border-zinc-800/50 p-2.5 rounded-lg flex items-center justify-between hover:border-green-500/30 transition-all">
+                  <div key={doc.id} className="bg-zinc-950/60 border border-zinc-800/50 p-2 rounded-lg flex items-center justify-between hover:border-green-500/30 transition-all">
                     <div className="flex items-center gap-3 overflow-hidden">
-                      <FileText size={16} className="text-zinc-700 min-w-[16px]" />
+                      <FileText size={14} className="text-zinc-700 min-w-[14px]" />
                       <div className="truncate">
-                        <h4 className="text-[10px] font-bold text-zinc-300 uppercase truncate">{doc.nome_arquivo}</h4>
+                        <h4 className="text-[9px] font-bold text-zinc-300 uppercase truncate">{doc.nome_arquivo}</h4>
                         <p className="text-[7px] text-zinc-600 font-mono tracking-tighter">{new Date(doc.data_leitura).toLocaleString()}</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 ml-4">
-                      <div className="bg-black/80 px-4 py-1.5 rounded border border-zinc-800 min-w-[80px] text-center">
-                        <span className="text-[6px] text-zinc-700 font-black block leading-none">Placa</span>
-                        <span className="text-[11px] font-black text-green-500 font-mono italic">{doc.conteudo_extraido?.placa || "---"}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="bg-black/80 px-3 py-1 rounded border border-zinc-800 min-w-[70px] text-center">
+                        <span className="text-[5px] text-zinc-700 font-black block leading-none">Placa</span>
+                        <span className="text-[10px] font-black text-green-500 font-mono italic">{doc.conteudo_extraido?.placa || "---"}</span>
                       </div>
                       
-                      <div className="bg-black/80 px-4 py-1.5 rounded border border-zinc-800 hidden sm:block min-w-[120px] text-center">
-                        <span className="text-[6px] text-zinc-700 font-black block leading-none">Chassi</span>
-                        <span className="text-[9px] font-bold text-zinc-500 font-mono uppercase">{doc.conteudo_extraido?.chassi?.substring(0, 10)}...</span>
+                      <div className="bg-black/80 px-3 py-1 rounded border border-zinc-800 hidden sm:block min-w-[100px] text-center">
+                        <span className="text-[5px] text-zinc-700 font-black block leading-none">Chassi</span>
+                        <span className="text-[8px] font-bold text-zinc-500 font-mono uppercase">{doc.conteudo_extraido?.chassi?.substring(0, 10)}...</span>
                       </div>
                     </div>
                   </div>
                 ))}
-                
-                {docs.length === 0 && (
-                   <div className="flex flex-col items-center justify-center py-24 opacity-5">
-                      <Search size={40} />
-                      <p className="text-[10px] mt-2 font-black uppercase">Vazio</p>
-                   </div>
-                )}
               </div>
             </div>
           </div>
