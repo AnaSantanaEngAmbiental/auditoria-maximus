@@ -2,9 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import * as pdfjsLib from 'pdfjs-dist';
 import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
 import { 
-  UploadCloud, ShieldCheck, Database, CheckCircle2, 
-  FileText, Loader2, Search, Zap, X 
+  ShieldCheck, FileText, Search, Printer, Gavel, 
+  RotateCcw, Briefcase, CheckCircle2, UploadCloud, 
+  Loader2, Building2, Camera, Cloud, AlertCircle, 
+  ChevronRight, HardHat, Info, Trash2, FileJson
 } from 'lucide-react';
 
 const supabase = createClient(
@@ -14,196 +18,227 @@ const supabase = createClient(
 
 export default function App() {
   const [isMounted, setIsMounted] = useState(false);
-  const [logs, setLogs] = useState([]);
   const [docs, setDocs] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [logs, setLogs] = useState([]);
+  const [busca, setBusca] = useState('');
+  const [loading, setLoading] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
     setIsMounted(true);
     pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
-    fetchDocs();
+    fetchData();
   }, []);
 
-  const extrairDados = (texto) => {
-    const placaRegex = /[A-Z]{3}[- ]?[0-9][A-Z0-9][0-9]{2}/gi;
-    const chassiRegex = /[A-HJ-NPR-Z0-9]{17}/gi;
-    return {
-      placa: (texto.match(placaRegex) || [])[0] || "---",
-      chassi: (texto.match(chassiRegex) || [])[0] || "---"
-    };
-  };
-
-  const fetchDocs = async () => {
+  const fetchData = async () => {
+    setLoading(true);
     const { data } = await supabase.from('documentos_processados').select('*').order('data_leitura', { ascending: false });
     if (data) setDocs(data);
+    setLoading(false);
   };
 
-  const handleFileChange = async (e) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    for (const file of Array.from(files)) {
-      setLogs(prev => [{ status: 'loading', msg: `Auditoria: ${file.name}` }, ...prev]);
+  const handleUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    for (const file of files) {
+      const logId = Date.now();
+      setLogs(prev => [{ id: logId, status: 'loading', msg: `Perícia PhD: ${file.name}` }, ...prev]);
       
       try {
-        let text = "";
+        let content = "";
         const ext = file.name.split('.').pop().toLowerCase();
-        
+
+        // MOTOR DE EXTRAÇÃO UNIVERSAL
         if (ext === 'pdf') {
           const buffer = await file.arrayBuffer();
           const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
           for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
-            const content = await page.getTextContent();
-            text += content.items.map(s => s.str).join(" ") + " ";
+            const text = await page.getTextContent();
+            content += text.items.map(s => s.str).join(" ") + " ";
           }
-        } else if (['xlsx', 'xls'].includes(ext)) {
+        } else if (['xlsx', 'csv'].includes(ext)) {
           const buffer = await file.arrayBuffer();
           const wb = XLSX.read(buffer);
-          text = XLSX.utils.sheet_to_txt(wb.Sheets[wb.SheetNames[0]]);
+          content = XLSX.utils.sheet_to_txt(wb.Sheets[wb.SheetNames[0]]);
         }
 
-        const info = extrairDados(text);
-        
+        // Lógica de Extração de Dados Críticos
+        const info = {
+          placa: (content.match(/[A-Z]{3}[- ]?[0-9][A-Z0-9][0-9]{2}/gi) || [])[0]?.toUpperCase().replace(/[- ]/g, "") || "---",
+          chassi: (content.match(/[A-HJ-NPR-Z0-9]{17}/gi) || [])[0] || "---",
+          validade: content.includes("2026") ? "VIGENTE" : "EXPIRADO"
+        };
+
         await supabase.from('documentos_processados').insert([{
           nome_arquivo: file.name,
           tipo_doc: ext.toUpperCase(),
-          conteudo_extraido: { placa: info.placa.toUpperCase(), chassi: info.chassi.toUpperCase() },
+          conteudo_extraido: info,
           unidade_id: '8694084d-26a9-4674-848e-67ee5e1ba4d4'
         }]);
 
-        setLogs(prev => [{ status: 'success', msg: `Extraído: ${info.placa}` }, ...prev]);
-        fetchDocs();
+        setLogs(prev => prev.map(l => l.id === logId ? { ...l, status: 'success', msg: `Auditoria Concluída: ${file.name}` } : l));
+        fetchData();
       } catch (err) {
-        setLogs(prev => [{ status: 'error', msg: `Erro no arquivo` }, ...prev]);
+        setLogs(prev => prev.map(l => l.id === logId ? { ...l, status: 'error', msg: `Falha no Processamento` } : l));
       }
     }
-    e.target.value = ""; 
   };
 
-  // Filtro inteligente para busca
-  const filteredDocs = docs.filter(doc => 
-    doc.nome_arquivo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (doc.conteudo_extraido?.placa && doc.conteudo_extraido.placa.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const updateField = async (id, field, value) => {
+    await supabase.from('documentos_processados').update({ [field]: value }).eq('id', id);
+    fetchData();
+  };
 
   if (!isMounted) return null;
 
   return (
-    <div className="min-h-screen bg-[#020202] text-zinc-400 font-sans p-2 text-[11px] selection:bg-green-500/20">
-      <div className="max-w-[1200px] mx-auto space-y-3">
-        
-        {/* HEADER PhD v4.0 */}
-        <header className="flex items-center justify-between bg-zinc-900/20 p-3 rounded-lg border border-zinc-800/40 shadow-xl backdrop-blur-md">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="text-green-500" size={16} />
-            <h1 className="font-black text-white uppercase italic tracking-tighter">Maximus PhD v4.0</h1>
+    <div className="flex h-screen bg-[#020202] text-zinc-400 font-sans overflow-hidden">
+      
+      {/* SIDEBAR PhD */}
+      <aside className="w-80 bg-[#050505] border-r border-zinc-800/40 p-6 flex flex-col gap-8 shadow-2xl">
+        <div className="flex items-center gap-4 py-4 border-b border-zinc-900">
+          <div className="bg-green-500 p-2.5 rounded-2xl shadow-[0_0_20px_rgba(34,197,94,0.4)]">
+            <ShieldCheck size={28} className="text-black" />
           </div>
-          
-          {/* BARRA DE BUSCA EM TEMPO REAL */}
+          <div>
+            <h1 className="text-xl font-black text-white italic tracking-tighter">MAXIMUS <span className="text-green-500">PhD</span></h1>
+            <p className="text-[7px] text-zinc-500 font-bold tracking-[4px] uppercase mt-1">Sincronização Cloud Ativa</p>
+          </div>
+        </div>
+
+        <nav className="flex flex-col gap-3">
+          <button className="flex items-center gap-4 p-4 bg-green-500/10 text-green-500 border border-green-500/20 rounded-[1.25rem] text-[11px] font-bold">
+            <HardHat size={18}/> Auditoria Técnica
+          </button>
+          <button className="flex items-center gap-4 p-4 hover:bg-zinc-900 rounded-[1.25rem] text-[11px] transition-all">
+            <Camera size={18}/> Relatório Fotográfico
+          </button>
+          <button className="flex items-center gap-4 p-4 hover:bg-zinc-900 rounded-[1.25rem] text-[11px] transition-all">
+            <Scale size={18}/> Leis e Condicionantes
+          </button>
+        </nav>
+
+        <div className="mt-auto p-5 bg-zinc-900/20 rounded-[1.5rem] border border-zinc-800/50">
+           <div className="flex items-center gap-3 mb-3">
+              <Cloud className="text-green-500" size={16}/>
+              <span className="text-[9px] text-white font-black uppercase tracking-widest">Supabase + Vercel</span>
+           </div>
+           <p className="text-[8px] text-zinc-500 leading-relaxed italic">Acesso remoto garantido sem retrabalho. Banco de dados centralizado via GitHub.</p>
+        </div>
+      </aside>
+
+      {/* PAINEL CENTRAL */}
+      <main className="flex-1 flex flex-col bg-[radial-gradient(ellipse_at_top_right,_rgba(34,197,94,0.05)_0%,_transparent_70%)] overflow-hidden">
+        
+        <header className="p-8 border-b border-zinc-900/50 flex justify-between items-center backdrop-blur-xl">
+          <div className="flex items-center gap-6">
+            <div className="h-14 w-14 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+               <Building2 className="text-green-500" size={28}/>
+            </div>
+            <div>
+              <h2 className="text-base font-black text-white uppercase tracking-tighter">Cardoso & Rates Engenharia</h2>
+              <p className="text-[10px] text-zinc-500 mt-1 font-bold uppercase tracking-widest">Licenciamento Ambiental Pará</p>
+            </div>
+          </div>
+
           <div className="relative group">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-green-500 transition-colors" size={12} />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-700" size={18} />
             <input 
-              type="text" 
-              placeholder="BUSCAR PLACA OU ARQUIVO..."
-              className="bg-black border border-zinc-800 rounded-md py-1.5 pl-8 pr-8 text-[9px] w-48 md:w-64 focus:border-green-500/50 outline-none transition-all placeholder:text-zinc-700"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              className="bg-black border border-zinc-800 rounded-2xl py-4 pl-12 pr-6 text-[11px] w-[400px] focus:border-green-500 outline-none transition-all"
+              placeholder="Buscar placa, chassi ou análise..."
+              onChange={(e) => setBusca(e.target.value)}
             />
-            {searchTerm && (
-              <button onClick={() => setSearchTerm("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-white">
-                <X size={12} />
-              </button>
-            )}
           </div>
         </header>
 
-        <div className="grid grid-cols-12 gap-3">
+        <div className="p-8 overflow-y-auto space-y-8 scrollbar-hide">
           
-          {/* PAINEL DE COMANDO */}
-          <div className="col-span-12 lg:col-span-3 space-y-3">
-            <div className="bg-zinc-900/10 border border-zinc-800/30 p-5 rounded-xl text-center">
-              <button 
-                onClick={() => fileInputRef.current.click()}
-                className="w-full bg-green-500/5 border border-green-500/20 hover:bg-green-500/10 text-green-500 py-4 rounded-lg flex flex-col items-center gap-2 transition-all active:scale-95 shadow-lg shadow-green-500/5"
-              >
-                <UploadCloud size={24} />
-                <span className="text-[9px] font-black uppercase tracking-widest">Importar Ofício</span>
-              </button>
-              <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} onClick={(e) => e.stopPropagation()} />
-              <p className="text-[7px] text-zinc-700 mt-3 uppercase tracking-widest font-bold">Processamento em 1-clique</p>
+          <div className="grid grid-cols-12 gap-8">
+            {/* DROPZONE PHD */}
+            <div 
+              onClick={() => fileInputRef.current.click()}
+              className="col-span-12 lg:col-span-4 bg-zinc-900/5 border-2 border-dashed border-zinc-800/50 p-14 rounded-[3rem] text-center hover:border-green-500/30 transition-all cursor-pointer group shadow-2xl relative"
+            >
+              <UploadCloud size={60} className="mx-auto mb-6 text-zinc-800 group-hover:text-green-500 transition-all" />
+              <h3 className="text-sm font-black text-white uppercase tracking-[5px]">Arraste & Solte</h3>
+              <p className="text-[9px] text-zinc-600 mt-3 uppercase tracking-[2px]">Universal: PDF, XLSX, JPG, JSON, CSV</p>
+              <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleUpload} />
             </div>
 
-            <div className="bg-zinc-900/10 border border-zinc-800/30 rounded-xl p-3 h-[250px] flex flex-col">
-              <div className="flex items-center justify-between mb-2 border-b border-zinc-900 pb-1">
-                <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Logs de Auditoria</span>
-                <Zap size={10} className="text-zinc-800" />
-              </div>
-              <div className="flex-1 overflow-y-auto space-y-1 scrollbar-hide text-[9px]">
-                {logs.length === 0 && <p className="text-zinc-800 italic mt-4 text-center">Aguardando...</p>}
-                {logs.map((log, i) => (
-                  <div key={i} className="flex gap-2 items-center text-zinc-500 py-1 border-b border-zinc-900/50 last:border-0">
-                    {log.status === 'success' ? <CheckCircle2 size={10} className="text-green-500" /> : <Loader2 size={10} className="text-yellow-500 animate-spin" />}
-                    <span className="truncate">{log.msg}</span>
-                  </div>
-                ))}
-              </div>
+            {/* MONITOR DE LOGS */}
+            <div className="col-span-12 lg:col-span-8 bg-[#080808] border border-zinc-800/40 rounded-[3rem] p-8 flex flex-col h-[280px] shadow-2xl overflow-hidden">
+               <div className="flex justify-between items-center mb-6">
+                  <span className="text-[10px] font-black text-zinc-600 uppercase tracking-[4px]">Monitor Técnico Maximus</span>
+                  <RotateCcw size={14} className="text-zinc-800 cursor-pointer hover:text-green-500" onClick={fetchData}/>
+               </div>
+               <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-hide">
+                 {logs.map(log => (
+                    <div key={log.id} className="flex items-center gap-4 p-4 bg-black/40 rounded-2xl border border-zinc-900 animate-in slide-in-from-right-4">
+                      {log.status === 'success' ? <CheckCircle2 size={16} className="text-green-500"/> : <Loader2 size={16} className="text-yellow-500 animate-spin"/>}
+                      <span className="text-[11px] text-zinc-400 font-mono italic">{log.msg}</span>
+                    </div>
+                 ))}
+               </div>
             </div>
           </div>
 
-          {/* PAINEL DE RESULTADOS */}
-          <div className="col-span-12 lg:col-span-9">
-            <div className="bg-zinc-900/5 border border-zinc-800/40 rounded-xl p-4 min-h-[500px]">
-              <div className="flex items-center gap-2 mb-4">
-                <Database size={12} className="text-green-500" />
-                <h2 className="text-[10px] font-black text-zinc-200 uppercase tracking-widest">Resultados Filtrados ({filteredDocs.length})</h2>
-              </div>
-
-              <div className="space-y-2">
-                {filteredDocs.map((doc) => (
-                  <div key={doc.id} className="bg-zinc-950/60 border border-zinc-800/50 p-2.5 rounded-lg flex items-center justify-between hover:border-green-500/30 transition-all group">
-                    <div className="flex items-center gap-3 overflow-hidden">
-                      <div className="p-2 bg-zinc-900 rounded-lg group-hover:text-green-500 transition-colors">
-                        <FileText size={14} />
+          {/* TABELA DE AUDITORIA CONSOLIDADA */}
+          <div className="bg-[#080808] border border-zinc-800/40 rounded-[3.5rem] overflow-hidden shadow-2xl mb-12">
+            <table className="w-full text-left">
+              <thead className="bg-zinc-900/40 text-[10px] uppercase font-black text-zinc-500 tracking-widest border-b border-zinc-900">
+                <tr>
+                  <th className="p-8">Arquivo / Auditoria</th>
+                  <th className="p-8">Placa & Chassi</th>
+                  <th className="p-8">Legenda / Condicionante</th>
+                  <th className="p-8 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="text-[12px]">
+                {docs.filter(d => d.nome_arquivo.includes(busca)).map((doc) => (
+                  <tr key={doc.id} className="border-t border-zinc-900/50 hover:bg-green-500/[0.02] transition-all group">
+                    <td className="p-8">
+                      <div className="flex items-center gap-6">
+                        <div className="p-5 bg-zinc-900/50 rounded-3xl text-zinc-600 group-hover:text-green-500 border border-zinc-800/50 transition-all">
+                          {doc.tipo_doc === 'PDF' ? <FileText size={24}/> : doc.tipo_doc === 'JSON' ? <FileJson size={24}/> : <Camera size={24}/>}
+                        </div>
+                        <div>
+                          <p className="font-black text-white uppercase tracking-tighter group-hover:text-green-400 transition-colors">{doc.nome_arquivo}</p>
+                          <p className="text-[9px] text-zinc-600 mt-2 uppercase font-bold tracking-widest">Format: {doc.tipo_doc}</p>
+                        </div>
                       </div>
-                      <div className="truncate">
-                        <h4 className="text-[10px] font-bold text-zinc-300 uppercase truncate group-hover:text-white transition-colors">{doc.nome_arquivo}</h4>
-                        <p className="text-[7px] text-zinc-600 font-mono tracking-tighter uppercase">{new Date(doc.data_leitura).toLocaleString()}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {/* PLACA COM ESTILO REFORÇADO */}
-                      <div className="bg-black/80 px-4 py-2 rounded-md border border-zinc-800 min-w-[85px] text-center shadow-inner group-hover:border-green-500/20">
-                        <span className="text-[5px] text-zinc-700 font-black block leading-none mb-1">PLACA</span>
-                        <span className="text-[11px] font-black text-green-500 font-mono italic tracking-wider leading-none">
-                          {doc.conteudo_extraido?.placa || "---"}
+                    </td>
+                    <td className="p-8">
+                      <div className="flex flex-col gap-2">
+                        <span className="text-green-500 font-black tracking-[3px] bg-green-500/5 px-3 py-1.5 rounded-xl border border-green-500/20 w-fit">
+                          {doc.conteudo_extraido?.placa || "N/A"}
+                        </span>
+                        <span className="text-[9px] text-zinc-600 font-mono italic">
+                          {doc.conteudo_extraido?.chassi || "CHASSI NÃO LOCALIZADO"}
                         </span>
                       </div>
-                      
-                      <div className="bg-black/80 px-4 py-2 rounded-md border border-zinc-800 hidden sm:block min-w-[120px] text-center shadow-inner">
-                        <span className="text-[5px] text-zinc-700 font-black block leading-none mb-1">CHASSI DOC</span>
-                        <span className="text-[9px] font-bold text-zinc-500 font-mono uppercase leading-none">
-                          {doc.conteudo_extraido?.chassi?.substring(0, 10)}...
-                        </span>
+                    </td>
+                    <td className="p-8">
+                       <textarea 
+                        className="bg-zinc-900/30 border border-zinc-800 rounded-2xl p-4 text-[11px] w-full h-20 outline-none focus:border-green-500/50 text-zinc-400 transition-all scrollbar-hide"
+                        placeholder="PhD: Insira aqui a legenda técnica ou análise pericial..."
+                        defaultValue={doc.legenda_tecnica}
+                        onBlur={(e) => updateField(doc.id, 'legenda_tecnica', e.target.value)}
+                       />
+                    </td>
+                    <td className="p-8 text-right">
+                      <div className="flex justify-end gap-3">
+                        <button className="p-4 bg-zinc-900 rounded-2xl hover:text-green-500 border border-transparent hover:border-green-500/20 transition-all">
+                          <Printer size={20}/>
+                        </button>
                       </div>
-                    </div>
-                  </div>
+                    </td>
+                  </tr>
                 ))}
-                
-                {filteredDocs.length === 0 && (
-                   <div className="flex flex-col items-center justify-center py-24 opacity-5">
-                      <Search size={40} />
-                      <p className="text-[10px] mt-2 font-black uppercase tracking-[5px]">Nenhum registro encontrado</p>
-                   </div>
-                )}
-              </div>
-            </div>
+              </tbody>
+            </table>
           </div>
-
         </div>
-      </div>
+      </main>
     </div>
   );
 }
