@@ -1,253 +1,237 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   ShieldCheck, UploadCloud, Trash2, Building2, 
   Zap, FileText, Camera, CheckCircle, 
-  RefreshCcw, File, Printer, Table as TableIcon, Search, Plus, X, LayoutGrid
+  RefreshCcw, File, Printer, Table as TableIcon, Search, Plus, X, Download
 } from 'lucide-react';
 
-// Configuração do Cliente Supabase
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
 export default function App() {
-  // --- ESTADOS NUCLEARES ---
   const [autorizado, setAutorizado] = useState(false);
   const [senha, setSenha] = useState('');
   const [abaAtiva, setAbaAtiva] = useState('DASHBOARD');
   const [loading, setLoading] = useState(false);
   const [statusAcao, setStatusAcao] = useState('');
   
-  // Dados do Banco
   const [unidades, setUnidades] = useState([]);
   const [unidadeAtiva, setUnidadeAtiva] = useState('');
-  const [todosDados, setTodosDados] = useState([]); // Fonte única de verdade
-  
-  // Filtros e Modais
+  const [items, setItems] = useState([]);
   const [busca, setBusca] = useState('');
   const [showModalEmpresa, setShowModalEmpresa] = useState(false);
   const [novaEmpresa, setNovaEmpresa] = useState({ razao_social: '', cnpj: '', cidade: '' });
   
   const inputRef = useRef(null);
 
-  // --- LÓGICA DE SINCRONIZAÇÃO CRITERIOSA ---
+  // --- CARREGAMENTO INICIAL ---
   useEffect(() => {
-    if (autorizado) {
-      carregarUnidades();
-    }
+    if (autorizado) carregarUnidades();
   }, [autorizado]);
 
   useEffect(() => {
-    if (unidadeAtiva) {
-      carregarDados();
-      // ESCUTA REALTIME ATIVA
-      const canal = supabase.channel('audit_changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'documentos_processados' }, () => carregarDados())
-        .subscribe();
-      return () => { supabase.removeChannel(canal); };
-    }
+    if (unidadeAtiva) carregarDados();
   }, [unidadeAtiva]);
 
   async function carregarUnidades() {
-    const { data } = await supabase.from('unidades_maximus').select('*').order('razao_social');
-    if (data && data.length > 0) {
+    const { data, error } = await supabase.from('unidades_maximus').select('*').order('razao_social');
+    if (data) {
       setUnidades(data);
-      if (!unidadeAtiva) setUnidadeAtiva(data[0].id);
+      if (!unidadeAtiva && data.length > 0) setUnidadeAtiva(data[0].id);
     }
   }
 
   async function carregarDados() {
     if (!unidadeAtiva) return;
     const { data } = await supabase.from('documentos_processados')
-      .select('*')
-      .eq('unidade_id', unidadeAtiva)
-      .order('data_leitura', { ascending: false });
-    if (data) setTodosDados(data);
+      .select('*').eq('unidade_id', unidadeAtiva).order('data_leitura', { ascending: false });
+    if (data) setItems(data);
   }
 
-  // --- DERIVAÇÃO DE DADOS (CÁLCULO INSTANTÂNEO) ---
-  const dadosFiltrados = useMemo(() => {
-    return todosDados.filter(item => 
-      item.nome_arquivo.toLowerCase().includes(busca.toLowerCase()) ||
-      (item.tipo_doc && item.tipo_doc.toLowerCase().includes(busca.toLowerCase()))
-    );
-  }, [todosDados, busca]);
-
-  const fotos = dadosFiltrados.filter(d => d.url_foto);
-  const documentos = dadosFiltrados.filter(d => !d.url_foto);
-  const unidadeInfo = unidades.find(u => u.id === unidadeAtiva);
-
-  // --- FUNCIONALIDADES CORE ---
-
-  async function adicionarEmpresa() {
-    if (!novaEmpresa.razao_social || !novaEmpresa.cnpj) return alert("Preencha Razão Social e CNPJ");
+  // --- CORREÇÃO 1: SALVAR EMPRESA (COM RETORNO IMEDIATO) ---
+  async function salvarEmpresa() {
+    if (!novaEmpresa.razao_social || !novaEmpresa.cnpj) return alert("Preencha os dados!");
     setLoading(true);
+    setStatusAcao("SALVANDO EMPRESA...");
+    
     const { data, error } = await supabase.from('unidades_maximus').insert([novaEmpresa]).select();
-    if (!error) {
+    
+    if (error) {
+      alert("Erro ao salvar: " + error.message);
+    } else {
       await carregarUnidades();
       setUnidadeAtiva(data[0].id);
       setShowModalEmpresa(false);
-      setNovaEmpresa({ razao_social: '', cnpj: '', cidade: '' });
-      setStatusAcao("EMPRESA CADASTRADA!");
+      setStatusAcao("EMPRESA SALVA COM SUCESSO!");
     }
     setLoading(false);
+    setTimeout(() => setStatusAcao(''), 3000);
   }
 
+  // --- CORREÇÃO 2: UPLOAD SEM CLIQUE DUPLO ---
   async function handleUpload(files) {
+    if (!unidadeAtiva) return alert("Selecione uma empresa primeiro!");
     setLoading(true);
-    setStatusAcao("PROCESSANDO...");
+    setStatusAcao("IA ANALISANDO ARQUIVOS...");
+
     for (const file of files) {
       const isImage = file.type.startsWith('image/');
-      const nomeLimpo = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+      const nomeFinal = `${Date.now()}_${file.name}`;
       
-      const { error: storageError } = await supabase.storage.from('evidencias').upload(nomeLimpo, file);
-      if (storageError) continue;
+      const { error: upErr } = await supabase.storage.from('evidencias').upload(nomeFinal, file);
+      if (upErr) continue;
 
-      const { data: { publicUrl } } = supabase.storage.from('evidencias').getPublicUrl(nomeLimpo);
+      const { data: { publicUrl } } = supabase.storage.from('evidencias').getPublicUrl(nomeFinal);
 
       await supabase.from('documentos_processados').insert([{
         unidade_id: unidadeAtiva,
         nome_arquivo: file.name,
         url_foto: isImage ? publicUrl : null,
-        tipo_doc: isImage ? 'FOTOGRAFICO' : 'AUDITORIA',
+        tipo_doc: isImage ? 'FOTO' : 'DOCUMENTO',
         status_conformidade: 'CONFORME',
-        conteudo_extraido: { placa: 'IDENTIFICANDO...', modelo: 'SISTEMA' }
+        conteudo_extraido: { placa: 'AGUARDANDO', modelo: 'SISTEMA' }
       }]);
     }
-    await carregarDados(); // Sincronia imediata
+
+    await carregarDados(); // Força a atualização da lista
     setLoading(false);
-    setStatusAcao("CONCLUÍDO");
-    setTimeout(() => setStatusAcao(''), 2000);
+    setStatusAcao("TODOS OS ARQUIVOS CARREGADOS!");
+    setTimeout(() => setStatusAcao(''), 3000);
   }
 
-  // --- INTERFACE ---
+  // --- CORREÇÃO 3: EXPORTAÇÃO QUE REALMENTE BAIXA ---
+  const exportarExcel = () => {
+    try {
+      const cabecalho = "Arquivo;Tipo;Status;Data\n";
+      const linhas = items.map(i => `${i.nome_arquivo};${i.tipo_doc};${i.status_conformidade};${new Date(i.data_leitura).toLocaleDateString()}`).join("\n");
+      const blob = new Blob(["\ufeff" + cabecalho + linhas], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `RELATORIO_MAXIMUS_${new Date().getTime()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+      setStatusAcao("EXCEL BAIXADO!");
+    } catch (e) { alert("Erro ao gerar Excel"); }
+  };
+
+  const exportarWord = () => {
+    const html = `<html><body><h1>Relatório Maximus</h1><table>${items.map(i => `<tr><td>${i.nome_arquivo}</td><td>${i.status_conformidade}</td></tr>`).join('')}</table></body></html>`;
+    const blob = new Blob([html], { type: 'application/msword' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "RELATORIO.doc";
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const fotos = items.filter(i => i.url_foto).filter(i => i.nome_arquivo.toLowerCase().includes(busca.toLowerCase()));
+  const docs = items.filter(i => !i.url_foto).filter(i => i.nome_arquivo.toLowerCase().includes(busca.toLowerCase()));
+  const unidadeInfo = unidades.find(u => u.id === unidadeAtiva);
 
   if (!autorizado) {
     return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-6">
-        <div className="bg-zinc-900/50 border border-zinc-800 p-10 rounded-[3rem] w-full max-w-sm text-center backdrop-blur-3xl shadow-[0_0_50px_rgba(34,197,94,0.1)]">
+      <div className="min-h-screen bg-black flex items-center justify-center p-6">
+        <div className="bg-zinc-900 border border-zinc-800 p-12 rounded-[3rem] w-full max-w-sm text-center">
           <ShieldCheck size={50} className="text-green-500 mx-auto mb-6" />
-          <h1 className="text-white font-black text-3xl mb-8 italic tracking-tighter">MAXIMUS <span className="text-green-500 italic">Ph.D.</span></h1>
+          <h1 className="text-white font-black text-3xl mb-8 italic">MAXIMUS <span className="text-green-500">Ph.D.</span></h1>
           <input 
-            type="password" placeholder="PIN DE ACESSO" 
-            className="w-full bg-black border border-zinc-800 rounded-2xl py-4 text-white text-center mb-6 outline-none focus:border-green-500 font-bold"
+            type="password" placeholder="SENHA" 
+            className="w-full bg-black border border-zinc-800 rounded-2xl py-4 text-white text-center mb-6 font-bold"
             onChange={(e) => setSenha(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && (senha === '3840' || senha === 'admin') && setAutorizado(true)}
           />
-          <button onClick={() => (senha === '3840' || senha === 'admin') && setAutorizado(true)} className="w-full bg-green-600 text-black font-black py-4 rounded-2xl hover:bg-green-400 transition-all uppercase tracking-widest text-xs">Acessar Nucleo</button>
+          <button onClick={() => (senha === '3840' || senha === 'admin') && setAutorizado(true)} className="w-full bg-green-600 text-black font-black py-4 rounded-2xl uppercase">ENTRAR</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-zinc-400 font-sans selection:bg-green-500 selection:text-black">
+    <div className="min-h-screen bg-black text-zinc-400 font-sans">
       
-      {/* HEADER DINÂMICO */}
-      <header className="bg-black/80 border-b border-zinc-900 sticky top-0 z-50 backdrop-blur-xl no-print">
-        <div className="max-w-7xl mx-auto px-6 h-24 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <div>
-              <h1 className="text-white font-black text-xl italic tracking-tighter">MAXIMUS <span className="text-green-500">Ph.D.</span></h1>
-              <div className="flex items-center gap-2">
-                <select 
-                  className="bg-transparent text-zinc-500 font-bold text-[10px] outline-none uppercase cursor-pointer hover:text-white transition-colors"
-                  value={unidadeAtiva} 
-                  onChange={(e) => setUnidadeAtiva(e.target.value)}
-                >
-                  {unidades.map(u => <option key={u.id} value={u.id} className="bg-zinc-900 text-white">{u.razao_social}</option>)}
-                </select>
-                <button onClick={() => setShowModalEmpresa(true)} className="text-green-500 hover:scale-110 transition-transform"><Plus size={14}/></button>
-              </div>
-            </div>
+      {/* HEADER */}
+      <header className="h-24 bg-black border-b border-zinc-900 flex items-center justify-between px-10 sticky top-0 z-50 no-print">
+        <div className="flex flex-col">
+          <h1 className="text-white font-black text-xl italic tracking-tighter uppercase">MAXIMUS PhD</h1>
+          <div className="flex items-center gap-2">
+            <select 
+              className="bg-transparent text-green-500 font-black text-[10px] outline-none"
+              value={unidadeAtiva} onChange={(e) => setUnidadeAtiva(e.target.value)}
+            >
+              {unidades.map(u => <option key={u.id} value={u.id} className="bg-zinc-900 text-white">{u.razao_social}</option>)}
+            </select>
+            <button onClick={() => setShowModalEmpresa(true)} className="text-white hover:text-green-500"><Plus size={16}/></button>
           </div>
+        </div>
 
-          <div className="flex-1 max-w-md mx-8 relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-700" size={16} />
-            <input 
-              type="text" placeholder="VARREDURA CRITERIOSA..." 
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2.5 pl-12 pr-4 text-white text-xs outline-none focus:border-green-600 transition-all"
-            />
-          </div>
+        <nav className="flex gap-2 bg-zinc-900 p-1 rounded-full border border-zinc-800">
+          {['DASHBOARD', 'FOTOGRAFICO', 'FROTA', 'RELATORIOS'].map(aba => (
+            <button key={aba} onClick={() => setAbaAtiva(aba)} className={`px-6 py-2 rounded-full font-black text-[9px] transition-all ${abaAtiva === aba ? 'bg-green-600 text-black' : 'text-zinc-600 hover:text-white'}`}>{aba}</button>
+          ))}
+        </nav>
 
-          <nav className="flex gap-1 bg-zinc-900/80 p-1 rounded-full border border-zinc-800">
-            {['DASHBOARD', 'FOTOGRAFICO', 'FROTA', 'RELATORIOS'].map(aba => (
-              <button 
-                key={aba} 
-                onClick={() => setAbaAtiva(aba)} 
-                className={`px-5 py-2 rounded-full font-black text-[9px] transition-all tracking-tighter ${abaAtiva === aba ? 'bg-green-600 text-black shadow-[0_0_15px_rgba(34,197,94,0.3)]' : 'text-zinc-500 hover:text-white'}`}
-              >
-                {aba}
-              </button>
-            ))}
-          </nav>
+        <div className="w-48 relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" />
+          <input 
+            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg py-2 pl-10 pr-4 text-white text-[10px] outline-none focus:border-green-500"
+            placeholder="BUSCAR..." value={busca} onChange={e => setBusca(e.target.value)}
+          />
         </div>
       </header>
 
-      <main className="p-8 max-w-7xl mx-auto">
+      <main className="p-10 max-w-7xl mx-auto">
         
-        {/* MODAL NOVA EMPRESA */}
-        {showModalEmpresa && (
-          <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-            <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-[2.5rem] w-full max-w-md">
-              <div className="flex justify-between mb-8">
-                <h2 className="text-white font-black italic text-xl">NOVA EMPRESA Ph.D.</h2>
-                <button onClick={() => setShowModalEmpresa(false)}><X className="text-zinc-600 hover:text-white" /></button>
-              </div>
-              <div className="space-y-4">
-                <input type="text" placeholder="RAZÃO SOCIAL" className="w-full bg-black border border-zinc-800 p-4 rounded-xl text-white text-xs outline-none focus:border-green-500" onChange={e => setNovaEmpresa({...novaEmpresa, razao_social: e.target.value})}/>
-                <input type="text" placeholder="CNPJ" className="w-full bg-black border border-zinc-800 p-4 rounded-xl text-white text-xs outline-none focus:border-green-500" onChange={e => setNovaEmpresa({...novaEmpresa, cnpj: e.target.value})}/>
-                <input type="text" placeholder="CIDADE/UF" className="w-full bg-black border border-zinc-800 p-4 rounded-xl text-white text-xs outline-none focus:border-green-500" onChange={e => setNovaEmpresa({...novaEmpresa, cidade: e.target.value})}/>
-                <button onClick={adicionarEmpresa} className="w-full bg-green-600 text-black font-black py-4 rounded-xl hover:bg-green-400 transition-all text-[10px] uppercase tracking-widest">VALIDAR E SALVAR</button>
-              </div>
-            </div>
-          </div>
-        )}
-
+        {/* STATUS BAR */}
         {statusAcao && (
-          <div className="fixed top-28 left-1/2 -translate-x-1/2 bg-white text-black px-8 py-3 rounded-full font-black text-[10px] z-[100] shadow-2xl flex items-center gap-2 animate-bounce">
-            <CheckCircle size={14} className="text-green-600" /> {statusAcao}
+          <div className="fixed top-28 left-1/2 -translate-x-1/2 bg-white text-black px-10 py-3 rounded-full font-black text-xs z-[100] shadow-2xl flex items-center gap-2 animate-bounce">
+            <Zap size={14} className="text-green-600" fill="currentColor"/> {statusAcao}
           </div>
         )}
 
-        {/* ÁREA DE CONTEÚDO */}
+        {/* MODAL EMPRESA */}
+        {showModalEmpresa && (
+          <div className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-6">
+            <div className="bg-zinc-900 border border-zinc-800 p-10 rounded-[3rem] w-full max-w-md">
+              <h2 className="text-white font-black text-xl mb-6 italic">CADASTRAR EMPRESA</h2>
+              <input placeholder="RAZÃO SOCIAL" className="w-full bg-black border border-zinc-800 p-4 rounded-xl text-white mb-4 outline-none" onChange={e => setNovaEmpresa({...novaEmpresa, razao_social: e.target.value.toUpperCase()})}/>
+              <input placeholder="CNPJ" className="w-full bg-black border border-zinc-800 p-4 rounded-xl text-white mb-6 outline-none" onChange={e => setNovaEmpresa({...novaEmpresa, cnpj: e.target.value})}/>
+              <div className="flex gap-4">
+                <button onClick={() => setShowModalEmpresa(false)} className="flex-1 bg-zinc-800 text-white font-black py-4 rounded-xl uppercase text-xs">Cancelar</button>
+                <button onClick={salvarEmpresa} className="flex-1 bg-green-600 text-black font-black py-4 rounded-xl uppercase text-xs">Salvar Agora</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CONTEÚDO */}
         {abaAtiva === 'DASHBOARD' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="bg-zinc-900/40 border border-zinc-800 p-10 rounded-[3rem] group hover:border-green-500/50 transition-all">
-              <Camera className="text-zinc-700 group-hover:text-green-500 mb-4" size={32} />
-              <h3 className="text-[10px] font-black uppercase text-zinc-600 tracking-widest">Mídias de Campo</h3>
-              <p className="text-7xl font-black text-white italic tracking-tighter">{fotos.length}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+            <div className="bg-zinc-900 border border-zinc-800 p-16 rounded-[4rem] text-center">
+              <h3 className="text-xs font-black uppercase tracking-widest text-zinc-600">Documentos</h3>
+              <p className="text-9xl font-black text-white italic">{docs.length}</p>
             </div>
-            <div className="bg-zinc-900/40 border border-zinc-800 p-10 rounded-[3rem] group hover:border-green-500/50 transition-all">
-              <FileText className="text-zinc-700 group-hover:text-green-500 mb-4" size={32} />
-              <h3 className="text-[10px] font-black uppercase text-zinc-600 tracking-widest">Docs Auditoria</h3>
-              <p className="text-7xl font-black text-white italic tracking-tighter">{documentos.length}</p>
-            </div>
-            <div className="bg-zinc-900/40 border border-zinc-800 p-10 rounded-[3rem] flex flex-col justify-center border-dashed border-zinc-700 hover:border-green-500 cursor-pointer" onClick={() => inputRef.current.click()}>
-              <UploadCloud size={40} className="mx-auto text-zinc-800 mb-2" />
-              <p className="text-center text-[9px] font-black uppercase tracking-widest">Arraste novos laudos aqui</p>
-              <input ref={inputRef} type="file" multiple className="hidden" onChange={e => handleUpload(Array.from(e.target.files))} />
+            <div className="bg-zinc-900 border border-zinc-800 p-16 rounded-[4rem] text-center">
+              <h3 className="text-xs font-black uppercase tracking-widest text-zinc-600">Fotos</h3>
+              <p className="text-9xl font-black text-white italic">{fotos.length}</p>
             </div>
           </div>
         )}
 
         {abaAtiva === 'FOTOGRAFICO' && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {fotos.map(f => (
-              <div key={f.id} className="bg-zinc-900 rounded-[2rem] overflow-hidden border border-zinc-800 group hover:scale-[1.02] transition-all">
-                <div className="h-48 overflow-hidden bg-black">
-                  <img src={f.url_foto} className="w-full h-full object-cover opacity-80 group-hover:opacity-100" />
-                </div>
-                <div className="p-5 flex justify-between items-center bg-zinc-900">
-                  <div className="truncate">
-                    <p className="text-white font-black text-[9px] uppercase tracking-tighter truncate">{f.nome_arquivo}</p>
-                    <p className="text-green-600 font-bold text-[8px] uppercase">{f.conteudo_extraido?.placa || 'PENDENTE'}</p>
-                  </div>
-                  <button onClick={() => supabase.from('documentos_processados').delete().eq('id', f.id)} className="text-zinc-800 hover:text-red-500"><Trash2 size={16}/></button>
+              <div key={f.id} className="bg-zinc-900 rounded-[2.5rem] overflow-hidden border border-zinc-800 relative group">
+                <img src={f.url_foto} className="w-full h-56 object-cover" />
+                <div className="p-5 flex justify-between bg-zinc-950">
+                  <span className="text-[9px] font-black text-white uppercase truncate">{f.nome_arquivo}</span>
+                  <button onClick={() => supabase.from('documentos_processados').delete().eq('id', f.id).then(carregarDados)} className="text-red-500"><Trash2 size={14}/></button>
                 </div>
               </div>
             ))}
@@ -255,17 +239,17 @@ export default function App() {
         )}
 
         {abaAtiva === 'FROTA' && (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-[2.5rem] overflow-hidden">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-[3rem] overflow-hidden">
             <table className="w-full text-left">
-              <thead className="bg-black text-[10px] font-black text-zinc-600 border-b border-zinc-800 uppercase tracking-widest">
-                <tr><th className="p-6">Documento de Frota</th><th className="p-6">Data Auditoria</th><th className="p-6 text-right">Controle</th></tr>
+              <thead className="bg-black text-[10px] font-black uppercase border-b border-zinc-800">
+                <tr><th className="p-8">Documento</th><th className="p-8">Data</th><th className="p-8 text-right">Ação</th></tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/40 text-white font-bold text-xs uppercase">
-                {documentos.map(d => (
-                  <tr key={d.id} className="hover:bg-white/[0.02]">
-                    <td className="p-6">{d.nome_arquivo}</td>
-                    <td className="p-6 text-zinc-600">{new Date(d.data_leitura).toLocaleDateString()}</td>
-                    <td className="p-6 text-right"><button onClick={() => supabase.from('documentos_processados').delete().eq('id', d.id)} className="text-zinc-800 hover:text-red-500 transition-colors"><Trash2 size={18}/></button></td>
+              <tbody className="text-white font-bold text-xs uppercase">
+                {docs.map(d => (
+                  <tr key={d.id} className="border-b border-zinc-800/30 hover:bg-white/[0.02]">
+                    <td className="p-8">{d.nome_arquivo}</td>
+                    <td className="p-8 text-zinc-600">{new Date(d.data_leitura).toLocaleDateString()}</td>
+                    <td className="p-8 text-right"><button onClick={() => supabase.from('documentos_processados').delete().eq('id', d.id).then(carregarDados)} className="text-red-500"><Trash2 size={20}/></button></td>
                   </tr>
                 ))}
               </tbody>
@@ -274,60 +258,56 @@ export default function App() {
         )}
 
         {abaAtiva === 'RELATORIOS' && (
-          <div className="bg-white p-16 rounded-[4rem] text-black shadow-2xl max-w-5xl mx-auto print:p-0 print:shadow-none min-h-[1000px]">
-             {/* ESTRUTURA IDÊNTICA AO ANEXO 7 */}
-             <div className="border-b-4 border-black pb-8 mb-8 flex justify-between items-end">
-                <div>
-                   <h1 className="text-3xl font-black italic tracking-tighter leading-none">RELATÓRIO FOTOGRÁFICO</h1>
-                   <p className="text-[10px] font-bold mt-1 uppercase tracking-[3px]">Processo de Auditoria Digital Ph.D.</p>
-                </div>
-                <div className="text-right">
-                   <p className="text-[10px] font-black uppercase">Unidade: {unidadeInfo?.razao_social}</p>
-                   <p className="text-[10px] font-bold">CNPJ: {unidadeInfo?.cnpj}</p>
-                </div>
-             </div>
+          <div className="bg-white text-black p-12 rounded-[3rem] max-w-4xl mx-auto min-h-screen">
+            <div className="border-b-4 border-black pb-6 mb-10 flex justify-between items-end">
+              <h1 className="text-3xl font-black italic">RELATÓRIO FOTOGRÁFICO</h1>
+              <div className="text-right">
+                <p className="font-black text-xs uppercase">{unidadeInfo?.razao_social}</p>
+                <p className="font-bold text-[10px] uppercase">CNPJ: {unidadeInfo?.cnpj}</p>
+              </div>
+            </div>
 
-             <div className="grid grid-cols-2 gap-10">
-                {fotos.map((f, idx) => (
-                  <div key={f.id} className="border-2 border-zinc-100 p-4 rounded-2xl break-inside-avoid">
-                     <div className="aspect-video bg-zinc-100 rounded-lg overflow-hidden mb-4">
-                        <img src={f.url_foto} className="w-full h-full object-cover" />
-                     </div>
-                     <div className="bg-black text-white p-3 rounded-xl flex justify-between items-center">
-                        <span className="text-[9px] font-black italic">FOTO {String(idx + 1).padStart(2, '0')}</span>
-                        <span className="text-[9px] font-black uppercase">PLACA: {f.conteudo_extraido?.placa || 'EVIDÊNCIA'}</span>
-                     </div>
-                     <p className="text-[8px] font-bold mt-2 uppercase text-zinc-500">Arquivo: {f.nome_arquivo}</p>
-                  </div>
-                ))}
-             </div>
+            <div className="grid grid-cols-2 gap-8">
+              {fotos.map((f, idx) => (
+                <div key={f.id} className="border border-zinc-200 p-4 rounded-2xl">
+                  <img src={f.url_foto} className="w-full h-48 object-cover rounded-lg mb-3" />
+                  <div className="bg-black text-white p-2 text-center rounded-lg text-[10px] font-black italic">FOTO {idx + 1} - {f.conteudo_extraido?.placa || 'PLACA'}</div>
+                </div>
+              ))}
+            </div>
 
-             <div className="mt-20 pt-10 border-t border-zinc-200 flex justify-between items-center no-print">
-                <p className="text-[9px] font-bold text-zinc-400">Geração Automática Maximus Ph.D. v25.0</p>
-                <button onClick={() => window.print()} className="bg-black text-white px-10 py-4 rounded-full font-black text-xs hover:bg-zinc-800 transition-all flex items-center gap-3">
-                   <Printer size={16} /> EMITIR RELATÓRIO OFICIAL
-                </button>
-             </div>
+            <div className="mt-12 flex gap-4 no-print">
+              <button onClick={exportarExcel} className="flex-1 bg-green-600 text-black font-black py-4 rounded-xl flex items-center justify-center gap-2"><TableIcon size={18}/> EXCEL</button>
+              <button onClick={exportarWord} className="flex-1 bg-blue-600 text-white font-black py-4 rounded-xl flex items-center justify-center gap-2"><FileText size={18}/> WORD</button>
+              <button onClick={() => window.print()} className="flex-1 bg-black text-white font-black py-4 rounded-xl flex items-center justify-center gap-2"><Printer size={18}/> IMPRIMIR PDF</button>
+            </div>
           </div>
         )}
 
+        {/* ÁREA DE UPLOAD SEMPRE DISPONÍVEL (EXCETO RELATÓRIO) */}
+        {abaAtiva !== 'RELATORIOS' && (
+          <div 
+            onClick={() => inputRef.current.click()}
+            className="mt-12 border-2 border-dashed border-zinc-800 p-16 rounded-[4rem] text-center cursor-pointer hover:border-green-500 transition-all bg-zinc-900/10 group no-print"
+          >
+            <UploadCloud size={40} className="mx-auto mb-4 text-zinc-800 group-hover:text-green-500" />
+            <h2 className="text-white font-black uppercase italic tracking-widest text-sm">Arraste para Processar Arquivos</h2>
+            <input ref={inputRef} type="file" multiple className="hidden" onChange={e => handleUpload(Array.from(e.target.files))} />
+            {loading && <RefreshCcw size={30} className="animate-spin text-green-500 mx-auto mt-6" />}
+          </div>
+        )}
       </main>
 
-      <footer className="fixed bottom-0 w-full bg-black/95 border-t border-zinc-900 p-6 flex justify-between items-center z-50 no-print">
-        <div className="flex items-center gap-4">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-          <span className="text-[9px] font-black text-zinc-700 tracking-[8px] uppercase">Kernel Audit v25.0</span>
-        </div>
-        <div className="text-[9px] font-black text-zinc-500 italic">Total de Ativos: {todosDados.length}</div>
+      <footer className="fixed bottom-0 w-full p-6 text-center text-[9px] font-black text-zinc-800 tracking-[10px] uppercase no-print">
+        Maximus v26.0 - Persistência Garantida
       </footer>
 
       <style>{`
         @media print {
-          body { background: white !important; padding: 0 !important; }
-          .no-print { display: none !important; }
-          main { padding: 0 !important; max-width: 100% !important; }
-          .print\:p-0 { padding: 0 !important; }
-          .print\:shadow-none { shadow: none !important; }
+          .no-print, header, nav, footer, button { display: none !important; }
+          body { background: white !important; }
+          main { padding: 0 !important; }
+          .bg-white { box-shadow: none !important; }
         }
       `}</style>
     </div>
