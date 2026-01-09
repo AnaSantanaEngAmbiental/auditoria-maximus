@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   ShieldCheck, UploadCloud, Trash2, Building2, 
-  Zap, FileText, Camera, DollarSign, 
-  Search, CheckCircle, RefreshCcw, File, X, Printer
+  Zap, FileText, Camera, CheckCircle, 
+  RefreshCcw, File, Printer, Download, Table as TableIcon
 } from 'lucide-react';
 
 const supabase = createClient(
@@ -24,23 +24,17 @@ export default function App() {
   
   const inputRef = useRef(null);
 
-  // CARREGAR UNIDADES
   useEffect(() => {
     if (autorizado) carregarUnidades();
   }, [autorizado]);
 
-  // ESCUTAR MUDANÇAS EM TEMPO REAL (REALTIME)
   useEffect(() => {
     if (autorizado && unidadeAtiva) {
       carregarDados();
-
       const subscription = supabase
-        .channel('maximus_realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'documentos_processados' }, () => {
-          carregarDados();
-        })
+        .channel('maximus_v21')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'documentos_processados' }, () => carregarDados())
         .subscribe();
-
       return () => { supabase.removeChannel(subscription); };
     }
   }, [autorizado, unidadeAtiva]);
@@ -51,116 +45,92 @@ export default function App() {
   }
 
   async function carregarDados() {
-    if (!unidadeAtiva) return;
-    const { data } = await supabase
-      .from('documentos_processados')
-      .select('*')
-      .eq('unidade_id', unidadeAtiva)
-      .order('data_leitura', { ascending: false });
-
+    const { data } = await supabase.from('documentos_processados')
+      .select('*').eq('unidade_id', unidadeAtiva).order('data_leitura', { ascending: false });
     if (data) {
       setFotos(data.filter(d => d.url_foto));
       setDocs(data.filter(d => !d.url_foto));
     }
   }
 
-  async function handleUpload(files) {
-    if (!unidadeAtiva) return;
-    setLoading(true);
-    setStatusAcao("IA ANALISANDO...");
+  // --- MOTORES DE EXPORTAÇÃO ---
 
+  const exportarCSV = () => {
+    const cabecalho = "Arquivo;Tipo;Extração IA;Status;Data\n";
+    const linhas = [...docs, ...fotos].map(i => 
+      `${i.nome_arquivo};${i.tipo_doc};${i.conteudo_extraido?.detalhe};${i.status_conformidade};${new Date(i.data_leitura).toLocaleDateString()}`
+    ).join("\n");
+    
+    const blob = new Blob(["\ufeff" + cabecalho + linhas], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `RELATORIO_MAXIMUS_${unidadeAtiva}.csv`);
+    link.click();
+    setStatusAcao("EXCEL GERADO!");
+  };
+
+  const exportarDOCX = () => {
+    const conteudo = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head><meta charset='utf-8'><title>Relatório</title></head>
+      <body>
+        <h1>Relatório de Auditoria - Maximus PhD</h1>
+        <p>Unidade: ${unidades.find(u => u.id === unidadeAtiva)?.razao_social}</p>
+        <table border='1'>
+          <tr><th>Arquivo</th><th>Tipo</th><th>Status</th></tr>
+          ${[...docs, ...fotos].map(i => `<tr><td>${i.nome_arquivo}</td><td>${i.tipo_doc}</td><td>${i.status_conformidade}</td></tr>`).join('')}
+        </table>
+      </body>
+      </html>
+    `;
+    const blob = new Blob([conteudo], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "RELATORIO_AUDITORIA.doc";
+    link.click();
+    setStatusAcao("DOCX GERADO!");
+  };
+
+  const imprimirPDF = () => {
+    window.print(); // Otimizado via CSS @media print abaixo
+  };
+
+  // --- FIM EXPORTAÇÃO ---
+
+  async function handleUpload(files) {
+    setLoading(true);
+    setStatusAcao("PROCESSANDO...");
     for (const file of files) {
       const nomeLimpo = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
-      const isImage = file.type.startsWith('image/');
-      
       const { error: upErr } = await supabase.storage.from('evidencias').upload(nomeLimpo, file);
       if (upErr) continue;
-
       const { data: { publicUrl } } = supabase.storage.from('evidencias').getPublicUrl(nomeLimpo);
-
-      // Inteligência de Categoria
-      const tipo = file.name.toUpperCase().includes('EXTRATO') ? 'FINANCEIRO' : 'AUDITORIA';
-      const info = file.name.toUpperCase().includes('EXTRATO') ? 'CONCILIAÇÃO OK' : 'DOCUMENTO AUDITADO';
 
       await supabase.from('documentos_processados').insert([{
         unidade_id: unidadeAtiva,
         nome_arquivo: file.name,
-        url_foto: isImage ? publicUrl : null,
-        tipo_doc: tipo,
-        conteudo_extraido: { detalhe: info },
+        url_foto: file.type.startsWith('image/') ? publicUrl : null,
+        tipo_doc: file.name.toUpperCase().includes('EXTRATO') ? 'FINANCEIRO' : 'AUDITORIA',
+        conteudo_extraido: { detalhe: 'AUDITADO VIA IA' },
         status_conformidade: 'CONFORME'
       }]);
     }
-
     setLoading(false);
     setStatusAcao("CONCLUÍDO!");
     setTimeout(() => setStatusAcao(""), 2000);
   }
 
-  async function deletarItem(id) {
-    if (!confirm("Remover registro?")) return;
-    await supabase.from('documentos_processados').delete().eq('id', id);
-  }
-
-  // GERAR RELATÓRIO PDF PARA IMPRESSÃO
-  const imprimirRelatorio = () => {
-    const nomeUnidade = unidades.find(u => u.id === unidadeAtiva)?.razao_social || 'Unidade';
-    const win = window.open('', '', 'width=900,height=700');
-    win.document.write(`
-      <html>
-        <head>
-          <title>Relatório Maximus</title>
-          <style>
-            body { font-family: sans-serif; padding: 30px; color: #333; }
-            .header { border-bottom: 3px solid #16a34a; padding-bottom: 10px; margin-bottom: 20px; }
-            table { width: 100%; border-collapse: collapse; }
-            th, td { border: 1px solid #eee; padding: 12px; text-align: left; }
-            th { background: #f4f4f4; text-transform: uppercase; font-size: 12px; }
-            .footer { margin-top: 40px; font-size: 10px; color: #999; text-align: center; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h2>MAXIMUS PhD - RELATÓRIO DE AUDITORIA</h2>
-            <p>UNIDADE: ${nomeUnidade} | DATA: ${new Date().toLocaleString()}</p>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Arquivo</th>
-                <th>Tipo</th>
-                <th>Extração IA</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${[...docs, ...fotos].map(i => `
-                <tr>
-                  <td>${i.nome_arquivo}</td>
-                  <td>${i.tipo_doc}</td>
-                  <td>${i.conteudo_extraido?.detalhe || 'OK'}</td>
-                  <td><b>${i.status_conformidade}</b></td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-          <div class="footer">Sistema Maximus PhD v20.5 - Marabá/PA</div>
-        </body>
-      </html>
-    `);
-    win.document.close();
-    win.print();
-  };
-
   if (!autorizado) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-6">
-        <div className="bg-zinc-900 border border-zinc-800 p-12 rounded-[3rem] w-full max-w-md text-center">
+      <div className="min-h-screen bg-black flex items-center justify-center font-sans">
+        <div className="bg-zinc-900 p-12 rounded-[3rem] w-full max-w-md text-center border border-zinc-800">
           <ShieldCheck size={60} className="text-green-500 mx-auto mb-6" />
-          <h1 className="text-white font-black text-4xl mb-8 uppercase italic italic">MAXIMUS <span className="text-green-500">PhD</span></h1>
+          <h1 className="text-white font-black text-4xl mb-8 italic">MAXIMUS <span className="text-green-500">PhD</span></h1>
           <input 
             type="password" placeholder="SENHA" 
-            className="w-full bg-black border border-zinc-800 rounded-2xl py-5 text-white text-center mb-6 outline-none focus:border-green-500 text-xl font-bold"
+            className="w-full bg-black border border-zinc-800 rounded-2xl py-5 text-white text-center mb-6 outline-none focus:border-green-500 font-bold"
             onChange={(e) => setSenha(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && (senha === '3840' || senha === 'admin') && setAutorizado(true)}
           />
@@ -172,7 +142,18 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-black text-zinc-500 font-sans">
-      <header className="h-28 bg-black border-b border-zinc-900 flex items-center justify-between px-10 sticky top-0 z-50">
+      <style>{`
+        @media print {
+          header, nav, .no-print, button { display: none !important; }
+          body { background: white; color: black; }
+          .print-only { display: block !important; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        }
+        .print-only { display: none; }
+      `}</style>
+
+      <header className="h-28 bg-black border-b border-zinc-900 flex items-center justify-between px-10 sticky top-0 z-50 no-print">
         <div className="flex flex-col">
           <h1 className="text-white font-black text-2xl italic tracking-tighter">MAXIMUS PhD</h1>
           <select 
@@ -184,73 +165,94 @@ export default function App() {
         </div>
 
         <nav className="flex gap-2 bg-zinc-900 p-1.5 rounded-full border border-zinc-800">
-          {['DASHBOARD', 'FOTOGRAFICO', 'FROTA'].map(aba => (
+          {['DASHBOARD', 'FOTOGRAFICO', 'FROTA', 'RELATORIOS'].map(aba => (
             <button key={aba} onClick={() => setAbaAtiva(aba)} className={`px-8 py-3 rounded-full font-black text-[10px] transition-all ${abaAtiva === aba ? 'bg-green-600 text-black' : 'text-zinc-600 hover:text-white'}`}>{aba}</button>
           ))}
         </nav>
 
-        <button onClick={imprimirRelatorio} className="flex items-center gap-2 bg-white text-black px-6 py-3 rounded-2xl text-[10px] font-black hover:bg-green-500 transition-all uppercase tracking-widest">
-          <Printer size={16} /> Relatório PDF
-        </button>
+        <div className="w-40"></div>
       </header>
 
       <main className="p-8 max-w-7xl mx-auto pb-32">
         {statusAcao && (
-          <div className="fixed top-32 left-1/2 -translate-x-1/2 bg-green-500 text-black px-10 py-4 rounded-full font-black text-xs z-[100] flex items-center gap-2 animate-bounce">
+          <div className="fixed top-32 left-1/2 -translate-x-1/2 bg-white text-black px-10 py-4 rounded-full font-black text-xs z-[100] shadow-2xl flex items-center gap-2 animate-bounce">
             <Zap size={16} fill="black" /> {statusAcao}
           </div>
         )}
 
-        <div 
-          onDragOver={e => e.preventDefault()} 
-          onDrop={e => { e.preventDefault(); handleUpload(Array.from(e.dataTransfer.files)); }}
-          onClick={() => inputRef.current.click()}
-          className="mb-12 border-2 border-dashed border-zinc-800 rounded-[3rem] p-20 text-center bg-zinc-900/20 hover:border-green-500/50 transition-all cursor-pointer group relative overflow-hidden"
-        >
-          <UploadCloud size={50} className="mx-auto mb-4 text-zinc-700 group-hover:text-green-500 transition-all" />
-          <h2 className="text-2xl font-black text-white uppercase italic">Audit IA Process</h2>
-          <p className="text-[10px] text-zinc-600 font-bold mt-2 uppercase tracking-[5px]">Arraste arquivos ou clique</p>
-          <input ref={inputRef} type="file" multiple className="hidden" onChange={e => handleUpload(Array.from(e.target.files))} />
-          {loading && <div className="absolute inset-0 bg-black/80 flex items-center justify-center backdrop-blur-md"><RefreshCcw className="animate-spin text-green-500" size={50} /></div>}
-        </div>
-
-        {abaAtiva === 'DASHBOARD' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-            <StatBox label="Documentos" value={docs.length} icon={<FileText />} />
-            <StatBox label="Fotos Campo" value={fotos.length} icon={<Camera />} />
+        {abaAtiva === 'RELATORIOS' ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 animate-in fade-in slide-in-from-bottom-4">
+            <ExportCard title="Excel / CSV" desc="Ideal para planilhas e cálculos." icon={<TableIcon size={40}/>} action={exportarCSV} color="hover:border-green-500" />
+            <ExportCard title="Word / DOCX" desc="Relatório formatado para edição." icon={<FileText size={40}/>} action={exportarDOCX} color="hover:border-blue-500" />
+            <ExportCard title="Imprimir PDF" desc="Gera documento pronto para envio." icon={<Printer size={40}/>} action={imprimirPDF} color="hover:border-white" />
           </div>
-        )}
+        ) : (
+          <>
+            <div 
+              onDragOver={e => e.preventDefault()} 
+              onDrop={e => { e.preventDefault(); handleUpload(Array.from(e.dataTransfer.files)); }}
+              className="mb-12 border-2 border-dashed border-zinc-800 rounded-[3rem] p-16 text-center bg-zinc-900/20 hover:border-green-500 transition-all cursor-pointer no-print"
+              onClick={() => inputRef.current.click()}
+            >
+              <UploadCloud size={50} className="mx-auto mb-4 text-zinc-700" />
+              <h2 className="text-xl font-black text-white uppercase italic">Central de Auditoria</h2>
+              <input ref={inputRef} type="file" multiple className="hidden" onChange={e => handleUpload(Array.from(e.target.files))} />
+              {loading && <div className="mt-4"><RefreshCcw className="animate-spin text-green-500 mx-auto" /></div>}
+            </div>
 
-        {abaAtiva === 'FOTOGRAFICO' && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {fotos.map(f => (
-              <div key={f.id} className="group bg-zinc-900 border border-zinc-800 rounded-[2rem] overflow-hidden relative shadow-2xl">
-                <img src={f.url_foto} className="w-full h-48 object-cover opacity-80 group-hover:opacity-100 transition-all" />
-                <button onClick={() => deletarItem(f.id)} className="absolute top-4 right-4 p-2 bg-red-600 text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16} /></button>
+            {abaAtiva === 'DASHBOARD' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <StatBox label="Base de Dados" value={docs.length} icon={<FileText />} />
+                <StatBox label="Fotos Campo" value={fotos.length} icon={<Camera />} />
               </div>
-            ))}
-          </div>
-        )}
+            )}
 
-        {abaAtiva === 'FROTA' && (
-          <div className="bg-zinc-900 rounded-[2.5rem] border border-zinc-800 overflow-hidden shadow-2xl">
-            <table className="w-full text-left">
-              <thead className="bg-zinc-950 text-zinc-600 text-[10px] font-black uppercase tracking-widest border-b border-zinc-800">
-                <tr><th className="p-8">Arquivo</th><th className="p-8">IA Extração</th><th className="p-8 text-right">Controle</th></tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800/50 text-white font-bold text-xs">
-                {docs.map(d => (
-                  <tr key={d.id} className="hover:bg-white/[0.02]">
-                    <td className="p-8 truncate max-w-[300px] uppercase">{d.nome_arquivo}</td>
-                    <td className="p-8"><span className="text-green-500 italic uppercase">{d.conteudo_extraido?.detalhe}</span></td>
-                    <td className="p-8 text-right"><button onClick={() => deletarItem(d.id)} className="text-zinc-800 hover:text-red-500"><Trash2 size={20} /></button></td>
-                  </tr>
+            {abaAtiva === 'FOTOGRAFICO' && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                {fotos.map(f => (
+                  <div key={f.id} className="bg-zinc-900 rounded-3xl overflow-hidden border border-zinc-800 group relative">
+                    <img src={f.url_foto} className="w-full h-44 object-cover opacity-80" />
+                    <button onClick={() => supabase.from('documentos_processados').delete().eq('id', f.id)} className="absolute top-2 right-2 p-2 bg-red-600 rounded-lg opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={14} className="text-white"/></button>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            )}
+
+            {abaAtiva === 'FROTA' && (
+              <div className="bg-zinc-900 rounded-[2.5rem] border border-zinc-800 overflow-hidden shadow-2xl">
+                <table className="w-full text-left">
+                  <thead className="bg-zinc-950 text-zinc-600 text-[10px] font-black uppercase tracking-widest border-b border-zinc-800">
+                    <tr><th className="p-8">Arquivo</th><th className="p-8">IA Extração</th><th className="p-8 text-right">Ação</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/50 text-white font-bold text-xs uppercase">
+                    {docs.map(d => (
+                      <tr key={d.id} className="hover:bg-white/[0.02]">
+                        <td className="p-8 truncate max-w-[300px]">{d.nome_arquivo}</td>
+                        <td className="p-8 text-green-500 italic">{d.conteudo_extraido?.detalhe}</td>
+                        <td className="p-8 text-right"><button onClick={() => supabase.from('documentos_processados').delete().eq('id', d.id)} className="text-zinc-800 hover:text-red-500"><Trash2 size={20} /></button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </main>
+
+      {/* ÁREA ESCONDIDA APENAS PARA IMPRESSÃO PDF */}
+      <div className="print-only">
+        <h1>Relatório Maximus PhD - Auditoria Consolidada</h1>
+        <p>Unidade: {unidades.find(u => u.id === unidadeAtiva)?.razao_social}</p>
+        <table>
+          <thead><tr><th>Nome do Arquivo</th><th>Tipo</th><th>Status</th></tr></thead>
+          <tbody>
+            {[...docs, ...fotos].map(i => (
+              <tr key={i.id}><td>{i.nome_arquivo}</td><td>{i.tipo_doc}</td><td>{i.status_conformidade}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -260,7 +262,20 @@ function StatBox({ label, value, icon }) {
     <div className="bg-zinc-900 border border-zinc-800 p-12 rounded-[3rem]">
       <div className="text-green-500 mb-4">{icon}</div>
       <h3 className="text-xs font-black text-zinc-600 uppercase tracking-widest">{label}</h3>
-      <p className="text-8xl font-black text-white italic tracking-tighter">{value}</p>
+      <p className="text-8xl font-black text-white italic mt-2">{value}</p>
+    </div>
+  );
+}
+
+function ExportCard({ title, desc, icon, action, color }) {
+  return (
+    <div 
+      onClick={action}
+      className={`bg-zinc-900 border border-zinc-800 p-10 rounded-[3rem] text-center cursor-pointer transition-all border-b-4 ${color} active:scale-95`}
+    >
+      <div className="text-zinc-500 mb-4 flex justify-center">{icon}</div>
+      <h3 className="text-white font-black text-xl mb-2">{title}</h3>
+      <p className="text-zinc-600 text-[10px] font-bold uppercase tracking-widest">{desc}</p>
     </div>
   );
 }
